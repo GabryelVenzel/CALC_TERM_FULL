@@ -300,7 +300,8 @@ with abas[0]:
     
     st.markdown("---")
     st.markdown(""" > **Observação:** Emissividade de 0.9 considerada no cálculo.""")
-    st.markdown("""> **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.""")
+                    > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.""")
+    st.markdown("""""")
 
 with abas[1]:
     st.subheader("Cálculo de Espessura Mínima para Evitar Condensação")
@@ -330,5 +331,6 @@ with abas[1]:
                 st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
             else:
                 st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
+
 
 

@@ -159,7 +159,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
         
     return Tf, None, False
 
-# --- INTERFACE PRINCIPAL ---
+# --- INICIALIZAÇÃO E INTERFACE PRINCIPAL ---
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=300)
@@ -231,7 +231,12 @@ with abas[0]:
     with col1:
         material_selecionado_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_quente")
     with col2:
-        geometry = st.selectbox("Tipo de Superfície", ["Superfície Plana", "Tubulação"], key="geom_quente")
+        geometry = st.selectbox(
+            "Tipo de Superfície", 
+            ["Superfície Plana", "Tubulação"],
+            help="Plana (pior cenário): Placa horizontal, face quente para baixo. Tubulação (pior cenário): Cilindro horizontal.",
+            key="geom_quente"
+        )
 
     isolante_selecionado = df_isolantes[df_isolantes['nome'] == material_selecionado_nome].iloc[0]
     k_func_str = isolante_selecionado['k_func']
@@ -274,15 +279,11 @@ with abas[0]:
     st.markdown("---")
 
     if st.button("Calcular", key="btn_quente"):
-        t_min_op = isolante_selecionado['T_min']
-        t_max_op = isolante_selecionado['T_max']
-
-        if not (t_min_op <= Tq <= t_max_op):
-            st.error(f"Material inadequado! A temperatura de operação ({Tq}°C) está fora dos limites para '{material_selecionado_nome}' (Mín: {t_min_op}°C, Máx: {t_max_op}°C).")
+        if not (isolante_selecionado['T_min'] <= Tq <= isolante_selecionado['T_max']):
+            st.error(f"Material inadequado! A temperatura de operação ({Tq}°C) está fora dos limites para '{material_selecionado_nome}' (Mín: {isolante_selecionado['T_min']}°C, Máx: {isolante_selecionado['T_max']}°C).")
         elif Tq <= To:
             st.error("Erro: A temperatura da face quente deve ser maior do que a temperatura ambiente.")
         else:
-            # --- BLOCO DE CÁLCULO E RESULTADOS RESTAURADO ---
             with st.spinner("Realizando cálculos..."):
                 Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
                     Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
@@ -327,15 +328,25 @@ with abas[0]:
                         m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
                 else:
                     st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
+    
+    st.markdown("---")
+    st.markdown("""
+    > **Observação:** Emissividade de 0.9 considerada no cálculo.
+    > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.
+    """)
 
 with abas[1]:
-    st.subheader("Cálculo de Espessura Mínima para Minimizar Condensação")
+    st.subheader("Cálculo de Espessura Mínima para Minimizar Condensação") # <-- TÍTULO ALTERADO
     
     col1, col2 = st.columns(2)
     with col1:
         material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
     with col2:
-        geometry_frio = st.selectbox("Tipo de Superfície", ["Superfície Plana", "Tubulação"], key="geom_frio")
+        geometry_frio = st.selectbox(
+            "Tipo de Superfície", 
+            ["Superfície Plana", "Tubulação"],
+            key="geom_frio"
+        )
 
     isolante_frio_selecionado = df_isolantes[df_isolantes['nome'] == material_frio_nome].iloc[0]
     k_func_str_frio = isolante_frio_selecionado['k_func']
@@ -349,16 +360,16 @@ with abas[1]:
     Ta_frio = col2.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
     UR = col3.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
 
-    wind_speed = st.number_input("Velocidade do vento (m/s)", min_value=0.0, value=0.0, step=0.5, format="%.1f", key="wind_speed_frio")
+    wind_speed = st.number_input(
+        "Velocidade do vento (m/s)",
+        min_value=0.0, value=0.0, step=0.5, format="%.1f", key="wind_speed_frio"
+    )
     if wind_speed == 0:
         st.info("💡 Com velocidade do vento igual a 0 m/s, o cálculo considera convecção natural.")
 
     if st.button("Calcular Espessura Mínima", key="btn_frio"):
-        t_min_op_frio = isolante_frio_selecionado['T_min']
-        t_max_op_frio = isolante_frio_selecionado['T_max']
-
-        if not (t_min_op_frio <= Ti_frio <= t_max_op_frio):
-            st.error(f"Material inadequado! A temperatura de operação ({Ti_frio}°C) está fora dos limites para '{material_frio_nome}' (Mín: {t_min_op_frio}°C, Máx: {t_max_op_frio}°C).")
+        if not (isolante_frio_selecionado['T_min'] <= Ti_frio <= isolante_frio_selecionado['T_max']):
+            st.error(f"Material inadequado! A temperatura de operação ({Ti_frio}°C) está fora dos limites para '{material_frio_nome}' (Mín: {isolante_frio_selecionado['T_min']}°C, Máx: {isolante_frio_selecionado['T_max']}°C).")
         elif Ta_frio <= Ti_frio:
             st.error("Erro: A temperatura ambiente deve ser maior que a temperatura interna para o cálculo de condensação.")
         else:
@@ -382,4 +393,7 @@ with abas[1]:
                     st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
                 else:
                     st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
+                else:
+                    st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
+
 

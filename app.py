@@ -18,6 +18,22 @@ st.markdown("""
     .stButton>button { background-color: #198754; color: white; border-radius: 8px; height: 3em; width: 100%; }
     .stMetric { border: 1px solid #E0E0E0; padding: 10px; border-radius: 8px; text-align: center; }
     input[type="radio"], input[type="checkbox"] { accent-color: #003366; }
+
+    /* Estilos para os boxes de resultado, conforme a imagem */
+    .stSuccess, .stInfo, .stWarning {
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    .stSuccess {
+        background-color: #1a4d2e; /* Verde escuro */
+    }
+    .stInfo {
+        background-color: #1f3c58; /* Azul escuro */
+    }
+    .stWarning {
+        background-color: #514e21; /* Amarelo escuro */
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,7 +176,7 @@ with st.sidebar.expander("Opções de Administrador", expanded=False):
                     a = st.text_input("a", "0,0387")
                     b = st.text_input("b", "0,0019")
                     k_func = f"{a} * math.exp({b} * T)"
-                
+
                 submitted = st.form_submit_button("Cadastrar")
                 if submitted:
                     if nome.strip() and k_func.strip():
@@ -188,12 +204,12 @@ with abas[0]:
     materiais = df_isolantes['nome'].tolist()
     material_selecionado_nome = st.selectbox("Escolha o material do isolante", materiais, key="mat_quente")
     k_func_str = df_isolantes[df_isolantes['nome'] == material_selecionado_nome]['k_func'].iloc[0]
-    
+
     col1, col2, col3 = st.columns(3)
     Tq = col1.number_input("Temperatura da face quente [°C]", value=250.0)
     To = col2.number_input("Temperatura ambiente [°C]", value=30.0)
     numero_camadas = col3.number_input("Número de camadas", 1, 3, 1)
-    
+
     espessuras = []
     cols = st.columns(numero_camadas)
     for i in range(numero_camadas):
@@ -202,27 +218,27 @@ with abas[0]:
     L_total = sum(espessuras) / 1000
 
     st.markdown("---")
-    
+
     # --- CHECKBOX PARA HABILITAR CÁLCULO FINANCEIRO ---
     calcular_financeiro = st.checkbox("Calcular retorno financeiro")
 
     if calcular_financeiro:
         st.subheader("Parâmetros do Cálculo Financeiro")
-        combustiveis = { 
-            "Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, 
+        combustiveis = {
+            "Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80},
             "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},
             "Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},
             "Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}
         }
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
-        
+
         editar_valor = st.checkbox("Editar custo do combustível/energia")
         if editar_valor:
             valor_comb = st.number_input("Custo combustível (R$)", value=comb_sel_obj['v'], step=0.01, min_value=0.0)
         else:
             valor_comb = comb_sel_obj['v']
-        
+
         col_fin1, col_fin2, col_fin3 = st.columns(3)
         m2 = col_fin1.number_input("Área do projeto (m²)", 1.0, value=10.0)
         h_dia = col_fin2.number_input("Horas de operação/dia", 1.0, 24.0, 8.0)
@@ -237,7 +253,20 @@ with abas[0]:
 
             if convergiu:
                 st.subheader("Resultados")
+
+                # --- LÓGICA DE CÁLCULO MOVIDA PARA SER EXIBIDA SEMPRE ---
+                perda_com_kw = q_com_isolante / 1000
+                
+                # Cálculo da perda sem isolante
+                h_sem = calcular_h_conv(Tq, To, 1.0)
+                q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
+                q_conv_sem = h_sem * (Tq - To)
+                perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
+
+                # Apresenta os resultados térmicos principais
                 st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
+                st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
+                st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
 
                 if numero_camadas > 1:
                     st.write("**Temperaturas Intermediárias:**")
@@ -249,25 +278,12 @@ with abas[0]:
                         st.info(f"Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
                         T_atual = T_interface
                 
-                # --- LÓGICA DO CÁLCULO FINANCEIRO (EXECUTADA SE O CHECKBOX ESTIVER MARCADO) ---
+                # --- LÓGICA DO CÁLCULO FINANCEIRO (APENAS RESULTADOS) ---
                 if calcular_financeiro:
-                    perda_com_kw = q_com_isolante / 1000
-                    
-                    # Cálculo da perda sem isolante
-                    h_sem = calcular_h_conv(Tq, To, 1.0) # L característico de 1m para uma parede grande
-                    q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
-                    q_conv_sem = h_sem * (Tq - To)
-                    perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
-
-                    # Apresenta as perdas térmicas
-                    st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
-                    st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
-                    
-                    # Continuação do cálculo financeiro
                     economia_kw_m2 = perda_sem_kw - perda_com_kw
                     custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
-                    eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33 # Média de semanas/mês
-                    
+                    eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
+
                     st.subheader("Retorno Financeiro")
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
@@ -285,7 +301,7 @@ with abas[0]:
 with abas[1]:
     material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
     k_func_str_frio = df_isolantes[df_isolantes['nome'] == material_frio_nome]['k_func'].iloc[0]
-    
+
     col1, col2, col3 = st.columns(3)
     Ti_frio = col1.number_input("Temperatura interna [°C]", value=5.0, key="Ti_frio")
     Ta_frio = col2.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
@@ -297,19 +313,16 @@ with abas[1]:
             alfa = ((a_mag * Ta_frio) / (b_mag + Ta_frio)) + math.log(UR / 100.0)
             T_orvalho = (b_mag * alfa) / (a_mag - alfa)
             st.info(f"💧 Temperatura de orvalho calculada: {T_orvalho:.1f} °C")
-            
+
             espessura_final = None
-            # Itera de 1mm até 500mm
             for L_teste in [i * 0.001 for i in range(1, 501)]:
                 Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio)
                 if convergiu and Tf >= T_orvalho:
                     espessura_final = L_teste
                     break
-            
+
             if espessura_final:
                 st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
             else:
                 st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-
-
 

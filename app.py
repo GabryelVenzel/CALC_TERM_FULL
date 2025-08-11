@@ -96,22 +96,19 @@ def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None, wind_speed_ms=0):
     delta_T = abs(Tf - To)
     if delta_T == 0: return 0
     
-    if wind_speed_ms >= 1.0: # Limiar para considerar convecção forçada
-        # --- CÁLCULO DE CONVECÇÃO FORÇADA ---
+    if wind_speed_ms >= 1.0:
         L_c = 1.0 if geometry == "Superfície Plana" else outer_diameter_m
-        if L_c is None or L_c == 0: L_c = 1.0 # Default para evitar divisão por zero
-        
+        if L_c is None or L_c == 0: L_c = 1.0
         Re = (wind_speed_ms * L_c) / nu
-        if Re < 5e5: # Fluxo Laminar
+        if Re < 5e5:
             Nu = 0.664 * (Re**0.5) * (Pr**(1/3))
-        else: # Fluxo Turbulento
+        else:
             Nu = (0.037 * (Re**0.8) - 871) * (Pr**(1/3))
     else:
-        # --- CÁLCULO DE CONVECÇÃO NATURAL ---
         if geometry == "Superfície Plana":
             L_c = 0.1
             Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
-            Nu = 0.27 * Ra**(1/4) # Placa horizontal, face quente para baixo
+            Nu = 0.27 * Ra**(1/4)
         elif geometry == "Tubulação":
             L_c = outer_diameter_m
             Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
@@ -231,7 +228,8 @@ with abas[0]:
         geometry = st.selectbox(
             "Tipo de Superfície", 
             ["Superfície Plana", "Tubulação"],
-            help="Plana (pior cenário): Placa horizontal, face quente para baixo. Tubulação (pior cenário): Cilindro horizontal."
+            help="Plana (pior cenário): Placa horizontal, face quente para baixo. Tubulação (pior cenário): Cilindro horizontal.",
+            key="geom_quente"
         )
 
     k_func_str = df_isolantes[df_isolantes['nome'] == material_selecionado_nome]['k_func'].iloc[0]
@@ -273,7 +271,7 @@ with abas[0]:
 
     st.markdown("---")
 
-    if st.button("Calcular"):
+    if st.button("Calcular", key="btn_quente"):
         if Tq <= To:
             st.error("Erro: A temperatura da face quente deve ser maior do que a temperatura ambiente.")
         else:
@@ -330,16 +328,27 @@ with abas[0]:
 
 with abas[1]:
     st.subheader("Cálculo de Espessura Mínima para Evitar Condensação")
-    material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
+    with col2:
+        geometry_frio = st.selectbox(
+            "Tipo de Superfície", 
+            ["Superfície Plana", "Tubulação"],
+            key="geom_frio"
+        )
+
     k_func_str_frio = df_isolantes[df_isolantes['nome'] == material_frio_nome]['k_func'].iloc[0]
 
+    pipe_diameter_mm_frio = 0
+    if geometry_frio == "Tubulação":
+        pipe_diameter_mm_frio = st.number_input("Diâmetro externo da tubulação [mm]", min_value=1.0, value=88.9, step=0.1, format="%.1f", key="diam_frio")
+
     col1, col2, col3 = st.columns(3)
-    with col1:
-        Ti_frio = st.number_input("Temperatura interna [°C]", value=5.0, key="Ti_frio")
-    with col2:
-        Ta_frio = st.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
-    with col3:
-        UR = st.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
+    Ti_frio = col1.number_input("Temperatura interna [°C]", value=5.0, key="Ti_frio")
+    Ta_frio = col2.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
+    UR = col3.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
 
     wind_speed = st.number_input(
         "Velocidade do vento (m/s)",
@@ -348,8 +357,7 @@ with abas[1]:
     if wind_speed == 0:
         st.info("💡 Com velocidade do vento igual a 0 m/s, o cálculo considera convecção natural.")
 
-
-    if st.button("Calcular Espessura Mínima"):
+    if st.button("Calcular Espessura Mínima", key="btn_frio"):
         if Ta_frio <= Ti_frio:
             st.error("Erro: A temperatura ambiente deve ser maior que a temperatura interna para o cálculo de condensação.")
         else:
@@ -362,7 +370,8 @@ with abas[1]:
                 espessura_final = None
                 for L_teste in [i * 0.001 for i in range(1, 501)]:
                     Tf, _, convergiu = encontrar_temperatura_face_fria(
-                        Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana", wind_speed_ms=wind_speed
+                        Ti_frio, Ta_frio, L_teste, k_func_str_frio, 
+                        geometry_frio, pipe_diameter_mm_frio / 1000, wind_speed_ms=wind_speed
                     )
                     if convergiu and Tf >= T_orvalho:
                         espessura_final = L_teste

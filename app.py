@@ -99,6 +99,10 @@ def calcular_k(k_func_str, T_media):
         return None
 
 def calcular_h_conv(Tf, To, L_caracteristico):
+    """
+    Calcula o coeficiente de convecção para uma placa plana horizontal (face quente para cima).
+    Este é considerado o pior cenário para perda de calor por convecção natural.
+    """
     Tf_K, To_K = Tf + 273.15, To + 273.15
     T_film_K = (Tf_K + To_K) / 2
     g, beta = 9.81, 1 / T_film_K
@@ -107,9 +111,22 @@ def calcular_h_conv(Tf, To, L_caracteristico):
     k_ar = 0.0263
     delta_T = abs(Tf - To)
     if delta_T == 0: return 0
-    Ra = (g * beta * delta_T * L_caracteristico**3) / (nu * alpha)
-    Nu = (0.825 + (0.387 * Ra**(1/6)) / (1 + (0.492 / (nu/alpha))**(9/16))**(8/27))**2
-    return (Nu * k_ar / L_caracteristico)
+    
+    # O comprimento característico L* para placa horizontal é Area/Perimetro.
+    # Usar L_total (espessura) é uma simplificação. Para um cálculo mais preciso,
+    # seria necessário entrar com as dimensões da placa.
+    # Mantendo L_total por consistência com as versões anteriores.
+    L_c = L_caracteristico 
+    
+    Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+
+    # Correlações de Nusselt para placa horizontal, face quente para cima
+    if Ra > 1e7 and Ra <= 1e11: # Turbulento
+        Nu = 0.15 * Ra**(1/3)
+    else: # Laminar (inclui o range 1e4-1e7 e valores menores)
+        Nu = 0.54 * Ra**(1/4)
+        
+    return (Nu * k_ar / L_c)
 
 def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str):
     Tf = To + 10.0
@@ -254,16 +271,12 @@ with abas[0]:
             if convergiu:
                 st.subheader("Resultados")
 
-                # --- LÓGICA DE CÁLCULO MOVIDA PARA SER EXIBIDA SEMPRE ---
                 perda_com_kw = q_com_isolante / 1000
-                
-                # Cálculo da perda sem isolante
                 h_sem = calcular_h_conv(Tq, To, 1.0)
                 q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                 q_conv_sem = h_sem * (Tq - To)
                 perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
 
-                # Apresenta os resultados térmicos principais
                 st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
                 st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
                 st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
@@ -278,7 +291,6 @@ with abas[0]:
                         st.info(f"Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
                         T_atual = T_interface
                 
-                # --- LÓGICA DO CÁLCULO FINANCEIRO (APENAS RESULTADOS) ---
                 if calcular_financeiro:
                     economia_kw_m2 = perda_sem_kw - perda_com_kw
                     custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
@@ -293,7 +305,12 @@ with abas[0]:
             else:
                 st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
     
-    st.markdown("> **Observação:** Emissividade de 0.9 e convecção em placa vertical consideradas nos cálculos.")
+    st.markdown("---")
+    st.markdown("""
+    > **Observação:** Emissividade de 0.9 considerada no cálculo.
+    
+    > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.
+    """)
 
 # ==============================================================================
 # ABA 2: CÁLCULO TÉRMICO FRIO

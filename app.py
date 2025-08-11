@@ -1,4 +1,3 @@
-import streamlit as st
 import math
 import time
 from PIL import Image
@@ -210,8 +209,9 @@ with abas[0]:
         st.subheader("Parâmetros do Cálculo Financeiro")
         combustiveis = { 
             "Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, 
-            "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75}, 
-            "Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00} 
+            "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},
+            "Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},
+            "Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}
         }
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
@@ -235,7 +235,7 @@ with abas[0]:
             Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str)
 
             if convergiu:
-                st.subheader("Resultados do Cálculo Térmico")
+                st.subheader("Resultados")
                 st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
 
                 if numero_camadas > 1:
@@ -257,20 +257,21 @@ with abas[0]:
                     q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                     q_conv_sem = h_sem * (Tq - To)
                     perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
+
+                    # Apresenta as perdas térmicas
+                    st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
+                    st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
                     
+                    # Continuação do cálculo financeiro
                     economia_kw_m2 = perda_sem_kw - perda_com_kw
                     custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
                     eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33 # Média de semanas/mês
                     
-                    st.subheader("Resultados do Retorno Financeiro")
+                    st.subheader("Retorno Financeiro")
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
                     m2.metric("Redução de Perda", f"{((economia_kw_m2 / perda_sem_kw) * 100):.1f} %" if perda_sem_kw > 0 else "N/A")
                     m3.metric("Temp. Superfície", f"{Tf:.1f} °C", delta=f"{(Tf - Tq):.1f} °C vs. sem isolante", delta_color="inverse")
-
-                    st.write("**Comparativo de Perda Térmica (kW/m²):**")
-                    df_perdas = pd.DataFrame({"Situação": ["Sem Isolante", "Com Isolante"], "Perda": [perda_sem_kw, perda_com_kw]}).set_index("Situação")
-                    st.bar_chart(df_perdas)
 
             else:
                 st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
@@ -308,6 +309,5 @@ with abas[1]:
                 st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
             else:
                 st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-
 
 

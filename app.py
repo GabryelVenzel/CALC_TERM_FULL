@@ -247,14 +247,28 @@ with abas[0]:
     calcular_financeiro = st.checkbox("Calcular retorno financeiro")
     if calcular_financeiro:
         st.subheader("Parâmetros do Cálculo Financeiro")
+        
+        st.info(
+            "💡 Os custos de combustível são pré-configurados com valores médios de mercado. "
+            "Para um cálculo mais preciso, marque a opção 'Editar custo' e insira o valor do seu fornecedor."
+        )
+
         combustiveis = {"Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},"Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},"Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}}
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
+        
         editar_valor = st.checkbox("Editar custo do combustível/energia")
         if editar_valor:
-            valor_comb = st.number_input("Custo combustível (R$)", value=comb_sel_obj['v'], step=0.01, min_value=0.0)
+            valor_comb = st.number_input(
+                "Custo combustível (R$)",
+                min_value=0.10,
+                value=comb_sel_obj['v'],
+                step=0.01,
+                format="%.2f"
+            )
         else:
             valor_comb = comb_sel_obj['v']
+            
         col_fin1, col_fin2, col_fin3 = st.columns(3)
         m2 = col_fin1.number_input("Área do projeto (m²)", 1.0, value=10.0)
         h_dia = col_fin2.number_input("Horas de operação/dia", 1.0, 24.0, 8.0)
@@ -263,7 +277,6 @@ with abas[0]:
     st.markdown("---")
 
     if st.button("Calcular"):
-        # --- VALIDAÇÃO DE TEMPERATURA ---
         if Tq <= To:
             st.error("Erro: A temperatura da face quente deve ser maior do que a temperatura ambiente.")
         else:
@@ -274,7 +287,6 @@ with abas[0]:
 
                 if convergiu:
                     st.subheader("Resultados")
-                    
                     st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
 
                     if numero_camadas > 1:
@@ -315,10 +327,8 @@ with abas[0]:
 
                         st.subheader("Retorno Financeiro")
                         m1, m2, m3 = st.columns(3)
-                        
                         m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
                         m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-                        
                         reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
                         m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
 
@@ -362,4 +372,3 @@ with abas[1]:
                     st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
                 else:
                     st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-

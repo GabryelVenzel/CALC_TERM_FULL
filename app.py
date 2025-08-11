@@ -129,7 +129,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
         elif geometry == "Tubulação":
             r_inner = pipe_diameter_m / 2
             r_outer = r_inner + L_total
-            if r_inner == 0 or r_outer == r_inner: return None, None, False # Evita erro de log
+            if r_inner == 0 or r_outer == r_inner: return None, None, False
             q_conducao = (k * (Tq - Tf)) / (r_outer * math.log(r_outer / r_inner))
             outer_surface_diameter = r_outer * 2
 
@@ -263,67 +263,67 @@ with abas[0]:
     st.markdown("---")
 
     if st.button("Calcular"):
-        with st.spinner("Realizando cálculos..."):
-            Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
-                Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
-            )
+        # --- VALIDAÇÃO DE TEMPERATURA ---
+        if Tq <= To:
+            st.error("Erro: A temperatura da face quente deve ser maior do que a temperatura ambiente.")
+        else:
+            with st.spinner("Realizando cálculos..."):
+                Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
+                    Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
+                )
 
-            if convergiu:
-                st.subheader("Resultados")
-                
-                # --- Exibe o resultado principal primeiro ---
-                st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
-
-                # --- LÓGICA CORRIGIDA para exibir temperaturas intermediárias ---
-                if numero_camadas > 1:
-                    st.write("**Temperaturas Intermediárias:**")
-                    T_atual = Tq
-                    k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
+                if convergiu:
+                    st.subheader("Resultados")
                     
-                    if k_medio and q_com_isolante:
-                        for i in range(numero_camadas - 1):
-                            # Calcula a queda de temperatura para a camada atual
-                            if geometry == "Superfície Plana":
-                                resistencia_camada = (espessuras[i] / 1000) / k_medio
-                                delta_T_camada = q_com_isolante * resistencia_camada
-                            elif geometry == "Tubulação":
-                                r_camada_i = (pipe_diameter_mm / 2000) + sum(espessuras[:i]) / 1000
-                                r_camada_o = r_camada_i + espessuras[i] / 1000
-                                # Fluxo por unidade de comprimento q' = q_total * (2*pi*r_externa_total)
-                                q_linha = q_com_isolante * (2 * math.pi * ((pipe_diameter_mm/2000)+L_total))
-                                # deltaT = q' * R'
-                                resistencia_termica_linha = math.log(r_camada_o / r_camada_i) / (2 * math.pi * k_medio)
-                                delta_T_camada = q_linha * resistencia_termica_linha
-                            
-                            T_interface = T_atual - delta_T_camada
-                            st.success(f"↪️ Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
-                            T_atual = T_interface
-                
-                # --- Exibe as perdas de calor ---
-                perda_com_kw = q_com_isolante / 1000
-                h_sem = calcular_h_conv(Tq, To, geometry, (pipe_diameter_mm / 1000) if geometry == "Tubulação" else None)
-                q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
-                q_conv_sem = h_sem * (Tq - To)
-                perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
+                    st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
 
-                st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
-                st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
-                
-                if calcular_financeiro:
-                    economia_kw_m2 = perda_sem_kw - perda_com_kw
-                    custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
-                    eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
-                    eco_anual = eco_mensal * 12
+                    if numero_camadas > 1:
+                        st.write("**Temperaturas Intermediárias:**")
+                        T_atual = Tq
+                        k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
+                        
+                        if k_medio and q_com_isolante:
+                            for i in range(numero_camadas - 1):
+                                if geometry == "Superfície Plana":
+                                    resistencia_camada = (espessuras[i] / 1000) / k_medio
+                                    delta_T_camada = q_com_isolante * resistencia_camada
+                                elif geometry == "Tubulação":
+                                    r_camada_i = (pipe_diameter_mm / 2000) + sum(espessuras[:i]) / 1000
+                                    r_camada_o = r_camada_i + espessuras[i] / 1000
+                                    q_linha = q_com_isolante * (2 * math.pi * ((pipe_diameter_mm/2000)+L_total))
+                                    resistencia_termica_linha = math.log(r_camada_o / r_camada_i) / (2 * math.pi * k_medio)
+                                    delta_T_camada = q_linha * resistencia_termica_linha
+                                
+                                T_interface = T_atual - delta_T_camada
+                                st.success(f"↪️ Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
+                                T_atual = T_interface
+                    
+                    perda_com_kw = q_com_isolante / 1000
+                    h_sem = calcular_h_conv(Tq, To, geometry, (pipe_diameter_mm / 1000) if geometry == "Tubulação" else None)
+                    q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
+                    q_conv_sem = h_sem * (Tq - To)
+                    perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
 
-                    st.subheader("Retorno Financeiro")
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-                    m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-                    reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
-                    m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
+                    st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
+                    st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
+                    
+                    if calcular_financeiro:
+                        economia_kw_m2 = perda_sem_kw - perda_com_kw
+                        custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
+                        eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
+                        eco_anual = eco_mensal * 12
 
-            else:
-                st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
+                        st.subheader("Retorno Financeiro")
+                        m1, m2, m3 = st.columns(3)
+                        
+                        m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
+                        m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
+                        
+                        reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
+                        m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
+
+                else:
+                    st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
     
     st.markdown("---")
     st.markdown("""
@@ -342,24 +342,24 @@ with abas[1]:
     UR = col3.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
 
     if st.button("Calcular Espessura Mínima"):
-        with st.spinner("Iterando para encontrar espessura..."):
-            a_mag, b_mag = 17.27, 237.7
-            alfa = ((a_mag * Ta_frio) / (b_mag + Ta_frio)) + math.log(UR / 100.0)
-            T_orvalho = (b_mag * alfa) / (a_mag - alfa)
-            st.info(f"💧 Temperatura de orvalho calculada: {T_orvalho:.1f} °C")
+        if Ta_frio <= Ti_frio:
+            st.error("Erro: A temperatura ambiente deve ser maior que a temperatura interna para o cálculo de condensação.")
+        else:
+            with st.spinner("Iterando para encontrar espessura..."):
+                a_mag, b_mag = 17.27, 237.7
+                alfa = ((a_mag * Ta_frio) / (b_mag + Ta_frio)) + math.log(UR / 100.0)
+                T_orvalho = (b_mag * alfa) / (a_mag - alfa)
+                st.info(f"💧 Temperatura de orvalho calculada: {T_orvalho:.1f} °C")
 
-            espessura_final = None
-            for L_teste in [i * 0.001 for i in range(1, 501)]:
-                Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana")
-                if convergiu and Tf >= T_orvalho:
-                    espessura_final = L_teste
-                    break
+                espessura_final = None
+                for L_teste in [i * 0.001 for i in range(1, 501)]:
+                    Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana")
+                    if convergiu and Tf >= T_orvalho:
+                        espessura_final = L_teste
+                        break
 
-            if espessura_final:
-                st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
-            else:
-                st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-
-
-
+                if espessura_final:
+                    st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
+                else:
+                    st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
 

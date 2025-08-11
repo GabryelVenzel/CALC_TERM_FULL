@@ -329,7 +329,7 @@ with abas[0]:
                     st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
 
 with abas[1]:
-    st.subheader("Cálculo de Espessura Mínima para Evitar Condensação")
+    st.subheader("Cálculo de Espessura Mínima para Minimizar Condensação")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -382,3 +382,4 @@ with abas[1]:
                     st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
                 else:
                     st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
+

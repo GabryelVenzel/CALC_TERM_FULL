@@ -19,9 +19,9 @@ st.markdown("""
     .stMetric { border: 1px solid #E0E0E0; padding: 10px; border-radius: 8px; text-align: center; }
     input[type="radio"], input[type="checkbox"] { accent-color: #003366; }
     .stSuccess, .stInfo, .stWarning { border-radius: 8px; padding: 1rem; }
-    .stSuccess { background-color: #1a4d2e; }
-    .stInfo { background-color: #1f3c58; }
-    .stWarning { background-color: #514e21; }
+    .stSuccess { background-color: #e6f2e6; color: #1a4d2e; border: 1px solid #1a4d2e; }
+    .stInfo { background-color: #e6eef2; color: #1f3c58; border: 1px solid #1f3c58; }
+    .stWarning { background-color: #f2f2e6; color: #514e21; border: 1px solid #514e21; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -129,7 +129,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
         elif geometry == "Tubulação":
             r_inner = pipe_diameter_m / 2
             r_outer = r_inner + L_total
-            if r_inner == 0 or r_outer == r_inner: return None, None, False
+            if r_inner <= 0 or r_outer <= r_inner: return None, None, False
             q_conducao = (k * (Tq - Tf)) / (r_outer * math.log(r_outer / r_inner))
             outer_surface_diameter = r_outer * 2
 
@@ -287,10 +287,10 @@ with abas[0]:
 
                 if convergiu:
                     st.subheader("Resultados")
+                    
                     st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
 
                     if numero_camadas > 1:
-                        st.write("**Temperaturas Intermediárias:**")
                         T_atual = Tq
                         k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
                         

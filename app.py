@@ -25,39 +25,49 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONSTANTES GLOBAIS ---
-e = 0.9
+# --- CONSTANTE GLOBAL ---
 sigma = 5.67e-8
 
 # --- CONEXÃO E FUNÇÕES DO GOOGLE SHEETS ---
 @st.cache_resource(ttl=600)
-def autorizar_cliente_gspread():
+def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     gcp_json = json.loads(st.secrets["GCP_JSON"])
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(gcp_json, scope)
     return gspread.authorize(credentials)
 
-def get_worksheet():
-    client = autorizar_cliente_gspread()
+def get_worksheet(sheet_name):
+    client = get_gspread_client()
     sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1W1JHXAnGJeWbGVK0AmORux5I7CYTEwoBIvBfVKO40aY")
-    return sheet.worksheet("Isolantes 2")
+    return sheet.worksheet(sheet_name)
 
 @st.cache_data(ttl=300)
 def carregar_isolantes():
     try:
-        worksheet = get_worksheet()
+        worksheet = get_worksheet("Isolantes 2")
         df = pd.DataFrame(worksheet.get_all_records())
         df['T_min'] = pd.to_numeric(df['T_min'], errors='coerce').fillna(-999)
         df['T_max'] = pd.to_numeric(df['T_max'], errors='coerce').fillna(9999)
         return df
     except Exception as ex:
-        st.error(f"Erro ao carregar isolantes: {ex}")
+        st.error(f"Erro ao carregar materiais isolantes: {ex}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def carregar_acabamentos():
+    try:
+        worksheet = get_worksheet("Emissividade")
+        df = pd.DataFrame(worksheet.get_all_records())
+        df['emissividade'] = pd.to_numeric(df['emissividade'], errors='coerce').fillna(0.9)
+        return df
+    except Exception as ex:
+        st.error(f"Erro ao carregar acabamentos: {ex}")
         return pd.DataFrame()
 
 # --- FUNÇÕES DE ADMINISTRAÇÃO DA PLANILHA ---
 def cadastrar_isolante(nome, k_func, t_min, t_max):
     try:
-        worksheet = get_worksheet()
+        worksheet = get_worksheet("Isolantes 2")
         worksheet.append_row([nome, k_func, t_min, t_max])
         st.cache_data.clear()
         st.success(f"Isolante '{nome}' cadastrado com sucesso!")
@@ -66,7 +76,7 @@ def cadastrar_isolante(nome, k_func, t_min, t_max):
 
 def excluir_isolante(nome):
     try:
-        worksheet = get_worksheet()
+        worksheet = get_worksheet("Isolantes 2")
         cell = worksheet.find(nome)
         if cell:
             worksheet.delete_rows(cell.row)
@@ -123,7 +133,7 @@ def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None, wind_speed_ms=0):
     
     return (Nu * k_ar) / L_c
 
-def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_diameter_m=None, wind_speed_ms=0):
+def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emissividade, pipe_diameter_m=None, wind_speed_ms=0):
     Tf = To + 10.0
     max_iter, step, min_step, tolerancia = 1000, 50.0, 0.001, 0.5
     erro_anterior = None
@@ -145,7 +155,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
 
         Tf_K, To_K = Tf + 273.15, To + 273.15
         h_conv = calcular_h_conv(Tf, To, geometry, outer_surface_diameter, wind_speed_ms)
-        q_rad = e * sigma * (Tf_K**4 - To_K**4)
+        q_rad = emissividade * sigma * (Tf_K**4 - To_K**4)
         q_conv = h_conv * (Tf - To)
         q_transferencia = q_conv + q_rad
         
@@ -169,8 +179,10 @@ except FileNotFoundError:
 st.title("Calculadora IsolaFácil")
 
 df_isolantes = carregar_isolantes()
-if df_isolantes.empty:
-    st.error("Não foi possível carregar materiais.")
+df_acabamentos = carregar_acabamentos()
+
+if df_isolantes.empty or df_acabamentos.empty:
+    st.error("Não foi possível carregar os dados da planilha. Verifique as abas 'Isolantes 2' e 'Emissividade'.")
     st.stop()
 
 # --- INTERFACE LATERAL (ADMIN) ---
@@ -227,28 +239,28 @@ abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico F
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         material_selecionado_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_quente")
     with col2:
-        geometry = st.selectbox(
-            "Tipo de Superfície", 
-            ["Superfície Plana", "Tubulação"],
-            help="Plana (pior cenário): Placa horizontal, face quente para baixo. Tubulação (pior cenário): Cilindro horizontal.",
-            key="geom_quente"
-        )
+        acabamento_selecionado_nome = st.selectbox("Tipo de isolamento / acabamento", df_acabamentos['acabamento'].tolist(), key="acab_quente")
+    with col3:
+        geometry = st.selectbox("Tipo de Superfície", ["Superfície Plana", "Tubulação"], key="geom_quente")
 
     isolante_selecionado = df_isolantes[df_isolantes['nome'] == material_selecionado_nome].iloc[0]
     k_func_str = isolante_selecionado['k_func']
+    
+    acabamento_selecionado = df_acabamentos[df_acabamentos['acabamento'] == acabamento_selecionado_nome].iloc[0]
+    emissividade_selecionada = acabamento_selecionado['emissividade']
 
     pipe_diameter_mm = 0
     if geometry == "Tubulação":
         pipe_diameter_mm = st.number_input("Diâmetro externo da tubulação [mm]", min_value=1.0, value=88.9, step=0.1, format="%.1f")
 
-    col1, col2, col3 = st.columns(3)
-    Tq = col1.number_input("Temperatura da face quente [°C]", value=250.0)
-    To = col2.number_input("Temperatura ambiente [°C]", value=30.0)
-    numero_camadas = col3.number_input("Número de camadas de isolante", 1, 3, 1)
+    col_temp1, col_temp2, col_temp3 = st.columns(3)
+    Tq = col_temp1.number_input("Temperatura da face quente [°C]", value=250.0)
+    To = col_temp2.number_input("Temperatura ambiente [°C]", value=30.0)
+    numero_camadas = col_temp3.number_input("Número de camadas de isolante", 1, 3, 1)
 
     espessuras = []
     cols_esp = st.columns(numero_camadas)
@@ -286,7 +298,7 @@ with abas[0]:
         else:
             with st.spinner("Realizando cálculos..."):
                 Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
-                    Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
+                    Tq, To, L_total, k_func_str, geometry, emissividade_selecionada, pipe_diameter_mm / 1000
                 )
                 if convergiu:
                     st.subheader("Resultados")
@@ -310,7 +322,7 @@ with abas[0]:
                                 T_atual = T_interface
                     perda_com_kw = q_com_isolante / 1000
                     h_sem = calcular_h_conv(Tq, To, geometry, (pipe_diameter_mm / 1000) if geometry == "Tubulação" else None)
-                    q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
+                    q_rad_sem = emissividade_selecionada * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                     q_conv_sem = h_sem * (Tq - To)
                     perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
                     st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
@@ -330,23 +342,19 @@ with abas[0]:
                     st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
     
     st.markdown("---")
-    st.markdown("""
-    > **Observação:** Emissividade de 0.9 considerada no cálculo.
+    st.markdown(f"""
+    > **Observação:** Emissividade de **{emissividade_selecionada}** considerada no cálculo.
     > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.
     """)
 
 with abas[1]:
-    st.subheader("Cálculo de Espessura Mínima para Minimizar Condensação") # <-- TÍTULO ALTERADO
+    st.subheader("Cálculo de Espessura Mínima para Minimizar Condensação")
     
     col1, col2 = st.columns(2)
     with col1:
         material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
     with col2:
-        geometry_frio = st.selectbox(
-            "Tipo de Superfície", 
-            ["Superfície Plana", "Tubulação"],
-            key="geom_frio"
-        )
+        geometry_frio = st.selectbox("Tipo de Superfície", ["Superfície Plana", "Tubulação"], key="geom_frio")
 
     isolante_frio_selecionado = df_isolantes[df_isolantes['nome'] == material_frio_nome].iloc[0]
     k_func_str_frio = isolante_frio_selecionado['k_func']
@@ -383,7 +391,10 @@ with abas[1]:
                 for L_teste in [i * 0.001 for i in range(1, 501)]:
                     Tf, _, convergiu = encontrar_temperatura_face_fria(
                         Ti_frio, Ta_frio, L_teste, k_func_str_frio, 
-                        geometry_frio, pipe_diameter_mm_frio / 1000, wind_speed_ms=wind_speed
+                        geometry_frio, 
+                        0.9, # Emissividade padrão para cálculo frio
+                        pipe_diameter_mm_frio / 1000, 
+                        wind_speed_ms=wind_speed
                     )
                     if convergiu and Tf >= T_orvalho:
                         espessura_final = L_teste

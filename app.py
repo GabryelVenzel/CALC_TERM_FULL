@@ -129,6 +129,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
         elif geometry == "Tubulação":
             r_inner = pipe_diameter_m / 2
             r_outer = r_inner + L_total
+            if r_inner == 0 or r_outer == r_inner: return None, None, False # Evita erro de log
             q_conducao = (k * (Tq - Tf)) / (r_outer * math.log(r_outer / r_inner))
             outer_surface_diameter = r_outer * 2
 
@@ -269,19 +270,42 @@ with abas[0]:
 
             if convergiu:
                 st.subheader("Resultados")
+                
+                # --- Exibe o resultado principal primeiro ---
+                st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
+
+                # --- LÓGICA CORRIGIDA para exibir temperaturas intermediárias ---
+                if numero_camadas > 1:
+                    st.write("**Temperaturas Intermediárias:**")
+                    T_atual = Tq
+                    k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
+                    
+                    if k_medio and q_com_isolante:
+                        for i in range(numero_camadas - 1):
+                            # Calcula a queda de temperatura para a camada atual
+                            if geometry == "Superfície Plana":
+                                resistencia_camada = (espessuras[i] / 1000) / k_medio
+                                delta_T_camada = q_com_isolante * resistencia_camada
+                            elif geometry == "Tubulação":
+                                r_camada_i = (pipe_diameter_mm / 2000) + sum(espessuras[:i]) / 1000
+                                r_camada_o = r_camada_i + espessuras[i] / 1000
+                                # Fluxo por unidade de comprimento q' = q_total * (2*pi*r_externa_total)
+                                q_linha = q_com_isolante * (2 * math.pi * ((pipe_diameter_mm/2000)+L_total))
+                                # deltaT = q' * R'
+                                resistencia_termica_linha = math.log(r_camada_o / r_camada_i) / (2 * math.pi * k_medio)
+                                delta_T_camada = q_linha * resistencia_termica_linha
+                            
+                            T_interface = T_atual - delta_T_camada
+                            st.success(f"↪️ Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
+                            T_atual = T_interface
+                
+                # --- Exibe as perdas de calor ---
                 perda_com_kw = q_com_isolante / 1000
-                
-                if geometry == "Superfície Plana":
-                    outer_diam_sem_isol = None
-                else:
-                    outer_diam_sem_isol = pipe_diameter_mm / 1000
-                
-                h_sem = calcular_h_conv(Tq, To, geometry, outer_diam_sem_isol)
+                h_sem = calcular_h_conv(Tq, To, geometry, (pipe_diameter_mm / 1000) if geometry == "Tubulação" else None)
                 q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                 q_conv_sem = h_sem * (Tq - To)
                 perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
 
-                st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
                 st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
                 st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
                 
@@ -293,10 +317,8 @@ with abas[0]:
 
                     st.subheader("Retorno Financeiro")
                     m1, m2, m3 = st.columns(3)
-                    
                     m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
                     m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-                    
                     reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
                     m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
 

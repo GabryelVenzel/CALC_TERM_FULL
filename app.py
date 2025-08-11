@@ -100,8 +100,8 @@ def calcular_k(k_func_str, T_media):
 
 def calcular_h_conv(Tf, To, L_caracteristico):
     """
-    Calcula o coeficiente de convecção para uma placa plana horizontal (face quente para cima).
-    Este é considerado o pior cenário para perda de calor por convecção natural.
+    Calcula o coeficiente de convecção para uma placa plana horizontal (face quente para baixo).
+    Este é o cenário de MENOR perda de calor, que resulta na MAIOR temperatura de face fria (cenário seguro).
     """
     Tf_K, To_K = Tf + 273.15, To + 273.15
     T_film_K = (Tf_K + To_K) / 2
@@ -112,19 +112,11 @@ def calcular_h_conv(Tf, To, L_caracteristico):
     delta_T = abs(Tf - To)
     if delta_T == 0: return 0
     
-    # O comprimento característico L* para placa horizontal é Area/Perimetro.
-    # Usar L_total (espessura) é uma simplificação. Para um cálculo mais preciso,
-    # seria necessário entrar com as dimensões da placa.
-    # Mantendo L_total por consistência com as versões anteriores.
     L_c = L_caracteristico 
-    
     Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
 
-    # Correlações de Nusselt para placa horizontal, face quente para cima
-    if Ra > 1e7 and Ra <= 1e11: # Turbulento
-        Nu = 0.15 * Ra**(1/3)
-    else: # Laminar (inclui o range 1e4-1e7 e valores menores)
-        Nu = 0.54 * Ra**(1/4)
+    # Correlação de Nusselt para placa horizontal, face quente para baixo.
+    Nu = 0.27 * Ra**(1/4)
         
     return (Nu * k_ar / L_c)
 
@@ -342,4 +334,3 @@ with abas[1]:
                 st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
             else:
                 st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-

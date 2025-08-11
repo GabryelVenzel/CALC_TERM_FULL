@@ -85,7 +85,7 @@ def calcular_k(k_func_str, T_media):
         st.error(f"Erro na fórmula k(T) '{k_func_str}': {ex}")
         return None
 
-def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None):
+def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None, wind_speed_ms=0):
     Tf_K, To_K = Tf + 273.15, To + 273.15
     T_film_K = (Tf_K + To_K) / 2
     g, beta = 9.81, 1 / T_film_K
@@ -95,25 +95,35 @@ def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None):
     Pr = nu / alpha
     delta_T = abs(Tf - To)
     if delta_T == 0: return 0
-
-    if geometry == "Superfície Plana":
-        L_c = 0.1
-        Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
-        Nu = 0.27 * Ra**(1/4)
     
-    elif geometry == "Tubulação":
-        L_c = outer_diameter_m
-        Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
-        term1 = 0.60
-        term2 = (0.387 * Ra**(1/6)) / ((1 + (0.559 / Pr)**(9/16))**(8/27))
-        Nu = (term1 + term2)**2
-    
+    if wind_speed_ms >= 1.0: # Limiar para considerar convecção forçada
+        # --- CÁLCULO DE CONVECÇÃO FORÇADA ---
+        L_c = 1.0 if geometry == "Superfície Plana" else outer_diameter_m
+        if L_c is None or L_c == 0: L_c = 1.0 # Default para evitar divisão por zero
+        
+        Re = (wind_speed_ms * L_c) / nu
+        if Re < 5e5: # Fluxo Laminar
+            Nu = 0.664 * (Re**0.5) * (Pr**(1/3))
+        else: # Fluxo Turbulento
+            Nu = (0.037 * (Re**0.8) - 871) * (Pr**(1/3))
     else:
-        return 5
-
+        # --- CÁLCULO DE CONVECÇÃO NATURAL ---
+        if geometry == "Superfície Plana":
+            L_c = 0.1
+            Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+            Nu = 0.27 * Ra**(1/4) # Placa horizontal, face quente para baixo
+        elif geometry == "Tubulação":
+            L_c = outer_diameter_m
+            Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+            term1 = 0.60
+            term2 = (0.387 * Ra**(1/6)) / ((1 + (0.559 / Pr)**(9/16))**(8/27))
+            Nu = (term1 + term2)**2
+        else:
+            Nu = 0
+    
     return (Nu * k_ar) / L_c
 
-def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_diameter_m=None):
+def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_diameter_m=None, wind_speed_ms=0):
     Tf = To + 10.0
     max_iter, step, min_step, tolerancia = 1000, 50.0, 0.001, 0.5
     erro_anterior = None
@@ -134,7 +144,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_
             outer_surface_diameter = r_outer * 2
 
         Tf_K, To_K = Tf + 273.15, To + 273.15
-        h_conv = calcular_h_conv(Tf, To, geometry, outer_surface_diameter)
+        h_conv = calcular_h_conv(Tf, To, geometry, outer_surface_diameter, wind_speed_ms)
         q_rad = e * sigma * (Tf_K**4 - To_K**4)
         q_conv = h_conv * (Tf - To)
         q_transferencia = q_conv + q_rad
@@ -247,28 +257,15 @@ with abas[0]:
     calcular_financeiro = st.checkbox("Calcular retorno financeiro")
     if calcular_financeiro:
         st.subheader("Parâmetros do Cálculo Financeiro")
-        
-        st.info(
-            "💡 Os custos de combustível são pré-configurados com valores médios de mercado. "
-            "Para um cálculo mais preciso, marque a opção 'Editar custo' e insira o valor do seu fornecedor."
-        )
-
+        st.info("💡 Os custos de combustível são pré-configurados com valores médios de mercado. Para um cálculo mais preciso, marque a opção 'Editar custo' e insira o valor do seu fornecedor.")
         combustiveis = {"Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},"Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},"Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}}
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
-        
         editar_valor = st.checkbox("Editar custo do combustível/energia")
         if editar_valor:
-            valor_comb = st.number_input(
-                "Custo combustível (R$)",
-                min_value=0.10,
-                value=comb_sel_obj['v'],
-                step=0.01,
-                format="%.2f"
-            )
+            valor_comb = st.number_input("Custo combustível (R$)", min_value=0.10, value=comb_sel_obj['v'], step=0.01, format="%.2f")
         else:
             valor_comb = comb_sel_obj['v']
-            
         col_fin1, col_fin2, col_fin3 = st.columns(3)
         m2 = col_fin1.number_input("Área do projeto (m²)", 1.0, value=10.0)
         h_dia = col_fin2.number_input("Horas de operação/dia", 1.0, 24.0, 8.0)
@@ -284,16 +281,12 @@ with abas[0]:
                 Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
                     Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
                 )
-
                 if convergiu:
                     st.subheader("Resultados")
-                    
                     st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
-
                     if numero_camadas > 1:
                         T_atual = Tq
                         k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
-                        
                         if k_medio and q_com_isolante:
                             for i in range(numero_camadas - 1):
                                 if geometry == "Superfície Plana":
@@ -305,33 +298,27 @@ with abas[0]:
                                     q_linha = q_com_isolante * (2 * math.pi * ((pipe_diameter_mm/2000)+L_total))
                                     resistencia_termica_linha = math.log(r_camada_o / r_camada_i) / (2 * math.pi * k_medio)
                                     delta_T_camada = q_linha * resistencia_termica_linha
-                                
                                 T_interface = T_atual - delta_T_camada
                                 st.success(f"↪️ Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
                                 T_atual = T_interface
-                    
                     perda_com_kw = q_com_isolante / 1000
                     h_sem = calcular_h_conv(Tq, To, geometry, (pipe_diameter_mm / 1000) if geometry == "Tubulação" else None)
                     q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                     q_conv_sem = h_sem * (Tq - To)
                     perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
-
                     st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
                     st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
-                    
                     if calcular_financeiro:
                         economia_kw_m2 = perda_sem_kw - perda_com_kw
                         custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
                         eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
                         eco_anual = eco_mensal * 12
-
                         st.subheader("Retorno Financeiro")
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
                         m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
                         reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
                         m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
-
                 else:
                     st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
     
@@ -347,9 +334,20 @@ with abas[1]:
     k_func_str_frio = df_isolantes[df_isolantes['nome'] == material_frio_nome]['k_func'].iloc[0]
 
     col1, col2, col3 = st.columns(3)
-    Ti_frio = col1.number_input("Temperatura interna [°C]", value=5.0, key="Ti_frio")
-    Ta_frio = col2.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
-    UR = col3.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
+    with col1:
+        Ti_frio = st.number_input("Temperatura interna [°C]", value=5.0, key="Ti_frio")
+    with col2:
+        Ta_frio = st.number_input("Temperatura ambiente [°C]", value=25.0, key="Ta_frio")
+    with col3:
+        UR = st.number_input("Umidade relativa do ar [%]", 0.0, 100.0, 70.0)
+
+    wind_speed = st.number_input(
+        "Velocidade do vento (m/s)",
+        min_value=0.0, value=0.0, step=0.5, format="%.1f", key="wind_speed_frio"
+    )
+    if wind_speed == 0:
+        st.info("💡 Com velocidade do vento igual a 0 m/s, o cálculo considera convecção natural.")
+
 
     if st.button("Calcular Espessura Mínima"):
         if Ta_frio <= Ti_frio:
@@ -363,7 +361,9 @@ with abas[1]:
 
                 espessura_final = None
                 for L_teste in [i * 0.001 for i in range(1, 501)]:
-                    Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana")
+                    Tf, _, convergiu = encontrar_temperatura_face_fria(
+                        Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana", wind_speed_ms=wind_speed
+                    )
                     if convergiu and Tf >= T_orvalho:
                         espessura_final = L_teste
                         break

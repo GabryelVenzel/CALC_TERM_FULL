@@ -162,7 +162,7 @@ if df_isolantes.empty:
     st.error("Não foi possível carregar materiais.")
     st.stop()
 
-# --- INTERFACE LATERAL (ADMIN) - REINCORPORADA ---
+# --- INTERFACE LATERAL (ADMIN) ---
 with st.sidebar.expander("Opções de Administrador", expanded=False):
     senha = st.text_input("Digite a senha", type="password", key="senha_admin")
     if senha == "Priner123":
@@ -289,18 +289,25 @@ with abas[0]:
                     economia_kw_m2 = perda_sem_kw - perda_com_kw
                     custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
                     eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
+                    eco_anual = eco_mensal * 12
+
                     st.subheader("Retorno Financeiro")
                     m1, m2, m3 = st.columns(3)
+                    
                     m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-                    m2.metric("Redução de Perda", f"{((economia_kw_m2 / perda_sem_kw) * 100):.1f} %" if perda_sem_kw > 0 else "N/A")
-                    m3.metric("Temp. Superfície", f"{Tf:.1f} °C", delta=f"{(Tf - Tq):.1f} °C vs. sem isolante", delta_color="inverse")
+                    m2.metric("Economia Anual", f"R$ {eco_anual:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
+                    
+                    reducao_pct_val = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
+                    m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
 
             else:
                 st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
     
     st.markdown("---")
-    st.markdown(""" > **Observação:** Emissividade de 0.9 considerada no cálculo.""")
-    st.markdown(""" > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.""")
+    st.markdown("""
+    > **Observação:** Emissividade de 0.9 considerada no cálculo.
+    > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.
+    """)
 
 with abas[1]:
     st.subheader("Cálculo de Espessura Mínima para Evitar Condensação")
@@ -330,9 +337,6 @@ with abas[1]:
                 st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
             else:
                 st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-
-
-
 
 
 

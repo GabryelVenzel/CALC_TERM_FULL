@@ -58,7 +58,7 @@ def carregar_acabamentos():
     try:
         worksheet = get_worksheet("Emissividade")
         df = pd.DataFrame(worksheet.get_all_records())
-        df['emissividade'] = pd.to_numeric(df['emissividade'], errors='coerce').fillna(0.9)
+        df['emissividade'] = pd.to_numeric(df['emissividade'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.9)
         return df
     except Exception as ex:
         st.error(f"Erro ao carregar acabamentos: {ex}")
@@ -392,7 +392,7 @@ with abas[1]:
                     Tf, _, convergiu = encontrar_temperatura_face_fria(
                         Ti_frio, Ta_frio, L_teste, k_func_str_frio, 
                         geometry_frio, 
-                        0.9, # Emissividade padrão para cálculo frio
+                        0.9,
                         pipe_diameter_mm_frio / 1000, 
                         wind_speed_ms=wind_speed
                     )

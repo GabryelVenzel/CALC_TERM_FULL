@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import json
 
-# --- CONFIGURAÇÕES GERAIS E ESTILO (Definido uma única vez) ---
+# --- CONFIGURAÇÕES GERAIS E ESTILO ---
 st.set_page_config(page_title="Calculadora IsolaFácil", layout="wide")
 
 st.markdown("""
@@ -18,30 +18,18 @@ st.markdown("""
     .stButton>button { background-color: #198754; color: white; border-radius: 8px; height: 3em; width: 100%; }
     .stMetric { border: 1px solid #E0E0E0; padding: 10px; border-radius: 8px; text-align: center; }
     input[type="radio"], input[type="checkbox"] { accent-color: #003366; }
-
-    /* Estilos para os boxes de resultado, conforme a imagem */
-    .stSuccess, .stInfo, .stWarning {
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    .stSuccess {
-        background-color: #1a4d2e; /* Verde escuro */
-    }
-    .stInfo {
-        background-color: #1f3c58; /* Azul escuro */
-    }
-    .stWarning {
-        background-color: #514e21; /* Amarelo escuro */
-    }
-
+    .stSuccess, .stInfo, .stWarning { border-radius: 8px; padding: 1rem; }
+    .stSuccess { background-color: #1a4d2e; }
+    .stInfo { background-color: #1f3c58; }
+    .stWarning { background-color: #514e21; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- CONSTANTES GLOBAIS ---
-e = 0.9  # Emissividade
-sigma = 5.67e-8  # Constante de Stefan-Boltzmann
+e = 0.9
+sigma = 5.67e-8
 
-# --- CONEXÃO COM GOOGLE SHEETS E CACHING ---
+# --- CONEXÃO E FUNÇÕES DO GOOGLE SHEETS ---
 @st.cache_resource(ttl=600)
 def autorizar_cliente_gspread():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -58,38 +46,12 @@ def get_worksheet():
 def carregar_isolantes():
     try:
         worksheet = get_worksheet()
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records)
+        return pd.DataFrame(worksheet.get_all_records())
     except Exception as ex:
-        st.error(f"Erro ao conectar com o Google Sheets: {ex}")
+        st.error(f"Erro ao carregar isolantes: {ex}")
         return pd.DataFrame()
 
-# --- FUNÇÕES DE ADMINISTRAÇÃO DA PLANILHA ---
-def cadastrar_isolante(nome, k_func):
-    try:
-        worksheet = get_worksheet()
-        worksheet.append_row([nome, k_func])
-        st.cache_data.clear()
-        st.success(f"Isolante '{nome}' cadastrado com sucesso!")
-    except Exception as ex:
-        st.error(f"Falha ao cadastrar: {ex}")
-
-def excluir_isolante(nome):
-    try:
-        worksheet = get_worksheet()
-        cell = worksheet.find(nome)
-        if cell:
-            worksheet.delete_rows(cell.row)
-            st.cache_data.clear()
-            st.success(f"Isolante '{nome}' excluído com sucesso!")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.warning("Isolante não encontrado para exclusão.")
-    except Exception as ex:
-        st.error(f"Falha ao excluir: {ex}")
-
-# --- FUNÇÕES DE CÁLCULO E LÓGICA ---
+# --- FUNÇÕES DE CÁLCULO ---
 def calcular_k(k_func_str, T_media):
     try:
         k_func_safe = str(k_func_str).replace(',', '.')
@@ -98,53 +60,73 @@ def calcular_k(k_func_str, T_media):
         st.error(f"Erro na fórmula k(T) '{k_func_str}': {ex}")
         return None
 
-def calcular_h_conv(Tf, To, L_caracteristico):
-    """
-    Calcula o coeficiente de convecção para uma placa plana horizontal (face quente para baixo).
-    Este é o cenário de MENOR perda de calor, que resulta na MAIOR temperatura de face fria (cenário seguro).
-    """
+def calcular_h_conv(Tf, To, geometry, outer_diameter_m=None):
     Tf_K, To_K = Tf + 273.15, To + 273.15
     T_film_K = (Tf_K + To_K) / 2
     g, beta = 9.81, 1 / T_film_K
     nu = 1.589e-5 * (T_film_K / 293.15)**0.7
     alpha = 2.25e-5 * (T_film_K / 293.15)**0.8
     k_ar = 0.0263
+    Pr = nu / alpha
     delta_T = abs(Tf - To)
     if delta_T == 0: return 0
+
+    if geometry == "Superfície Plana":
+        L_c = 0.1 # Comprimento característico default para placa grande
+        Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+        Nu = 0.27 * Ra**(1/4) # Placa horizontal, face quente para baixo (maior Tf)
     
-    L_c = L_caracteristico 
-    Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+    elif geometry == "Tubulação":
+        L_c = outer_diameter_m
+        Ra = (g * beta * delta_T * L_c**3) / (nu * alpha)
+        # Correlação de Churchill e Chu para cilindro horizontal
+        term1 = 0.60
+        term2 = (0.387 * Ra**(1/6)) / ((1 + (0.559 / Pr)**(9/16))**(8/27))
+        Nu = (term1 + term2)**2
+    
+    else: # Fallback
+        return 5 
 
-    # Correlação de Nusselt para placa horizontal, face quente para baixo.
-    Nu = 0.27 * Ra**(1/4)
-        
-    return (Nu * k_ar / L_c)
+    return (Nu * k_ar) / L_c
 
-def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str):
+def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, pipe_diameter_m=None):
     Tf = To + 10.0
     max_iter, step, min_step, tolerancia = 1000, 50.0, 0.001, 0.5
     erro_anterior = None
+    
     for i in range(max_iter):
         T_media = (Tq + Tf) / 2
         k = calcular_k(k_func_str, T_media)
-        if k is None or k <= 0:
-            return None, None, False
-        q_conducao = k * (Tq - Tf) / L_total
+        if k is None or k <= 0: return None, None, False
+
+        # --- Condução baseada na geometria ---
+        if geometry == "Superfície Plana":
+            q_conducao = k * (Tq - Tf) / L_total
+            outer_surface_diameter = L_total # Para h_conv
+        elif geometry == "Tubulação":
+            r_inner = pipe_diameter_m / 2
+            r_outer = r_inner + L_total
+            # Condução por unidade de área da superfície externa
+            q_conducao = (k * (Tq - Tf)) / (r_outer * math.log(r_outer / r_inner))
+            outer_surface_diameter = r_outer * 2
+
         Tf_K, To_K = Tf + 273.15, To + 273.15
-        h_conv = calcular_h_conv(Tf, To, L_total)
+        h_conv = calcular_h_conv(Tf, To, geometry, outer_surface_diameter)
         q_rad = e * sigma * (Tf_K**4 - To_K**4)
         q_conv = h_conv * (Tf - To)
         q_transferencia = q_conv + q_rad
+        
         erro = q_conducao - q_transferencia
-        if abs(erro) < tolerancia:
-            return Tf, q_transferencia, True
+        if abs(erro) < tolerancia: return Tf, q_transferencia, True
+
         if erro_anterior is not None and erro * erro_anterior < 0:
             step = max(min_step, step * 0.5)
         Tf += step if erro > 0 else -step
         erro_anterior = erro
+        
     return Tf, None, False
 
-# --- INICIALIZAÇÃO E INTERFACE PRINCIPAL ---
+# --- INTERFACE PRINCIPAL ---
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=300)
@@ -155,52 +137,8 @@ st.title("Calculadora IsolaFácil")
 
 df_isolantes = carregar_isolantes()
 if df_isolantes.empty:
-    st.error("Não foi possível carregar materiais. Verifique a conexão e a planilha.")
+    st.error("Não foi possível carregar materiais.")
     st.stop()
-
-# --- INTERFACE LATERAL (ADMIN) ---
-with st.sidebar.expander("Opções de Administrador", expanded=False):
-    senha = st.text_input("Digite a senha", type="password", key="senha_admin")
-    if senha == "Priner123":
-        aba_admin = st.radio("Escolha a opção", ["Cadastrar Isolante", "Gerenciar Isolantes"])
-        if aba_admin == "Cadastrar Isolante":
-            st.subheader("Cadastrar Novo Isolante")
-            with st.form("cadastro_form", clear_on_submit=True):
-                nome = st.text_input("Nome do Isolante")
-                modelo_k = st.radio("Modelo de função k(T)", ["Constante", "Linear", "Polinomial", "Exponencial"])
-                k_func = ""
-                if modelo_k == "Constante":
-                    k0 = st.text_input("k₀", "0,035")
-                    k_func = f"{k0}"
-                elif modelo_k == "Linear":
-                    k0 = st.text_input("k₀", "0,030")
-                    k1 = st.text_input("k₁ (coef. de T)", "0,0001")
-                    k_func = f"{k0} + {k1} * T"
-                elif modelo_k == "Polinomial":
-                    k0 = st.text_input("k₀", "0,025")
-                    k1 = st.text_input("k₁ (T¹)", "0,0001")
-                    k2 = st.text_input("k₂ (T²)", "0.0")
-                    k_func = f"{k0} + {k1}*T + {k2}*T**2"
-                elif modelo_k == "Exponencial":
-                    a = st.text_input("a", "0,0387")
-                    b = st.text_input("b", "0,0019")
-                    k_func = f"{a} * math.exp({b} * T)"
-
-                submitted = st.form_submit_button("Cadastrar")
-                if submitted:
-                    if nome.strip() and k_func.strip():
-                        if nome in df_isolantes['nome'].tolist():
-                            st.warning("Já existe um isolante com esse nome.")
-                        else:
-                            cadastrar_isolante(nome, k_func)
-                    else:
-                        st.error("Nome e fórmula são obrigatórios.")
-
-        elif aba_admin == "Gerenciar Isolantes":
-            st.subheader("Isolantes Cadastrados")
-            for nome_isolante in df_isolantes['nome']:
-                if st.button(f"Excluir {nome_isolante}", key=f"del_{nome_isolante}"):
-                    excluir_isolante(nome_isolante)
 
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
@@ -210,61 +148,77 @@ abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico F
 # ==============================================================================
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
-    materiais = df_isolantes['nome'].tolist()
-    material_selecionado_nome = st.selectbox("Escolha o material do isolante", materiais, key="mat_quente")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        material_selecionado_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_quente")
+    with col2:
+        geometry = st.selectbox(
+            "Tipo de Superfície", 
+            ["Superfície Plana", "Tubulação"],
+            help="Plana (pior cenário): Placa horizontal, face quente para baixo. Tubulação (pior cenário): Cilindro horizontal."
+        )
+
     k_func_str = df_isolantes[df_isolantes['nome'] == material_selecionado_nome]['k_func'].iloc[0]
+
+    # Entrada condicional do diâmetro
+    pipe_diameter_mm = 0
+    if geometry == "Tubulação":
+        pipe_diameter_mm = st.number_input("Diâmetro externo da tubulação [mm]", min_value=1.0, value=88.9, step=0.1, format="%.1f")
 
     col1, col2, col3 = st.columns(3)
     Tq = col1.number_input("Temperatura da face quente [°C]", value=250.0)
     To = col2.number_input("Temperatura ambiente [°C]", value=30.0)
-    numero_camadas = col3.number_input("Número de camadas", 1, 3, 1)
+    numero_camadas = col3.number_input("Número de camadas de isolante", 1, 3, 1)
 
     espessuras = []
-    cols = st.columns(numero_camadas)
+    cols_esp = st.columns(numero_camadas)
     for i in range(numero_camadas):
-        esp = cols[i].number_input(f"Espessura camada {i+1} [mm]", value=51.0/numero_camadas, key=f"L{i+1}_quente", min_value=0.1)
+        esp = cols_esp[i].number_input(f"Espessura camada {i+1} [mm]", value=51.0/numero_camadas, key=f"L{i+1}_quente", min_value=0.1)
         espessuras.append(esp)
     L_total = sum(espessuras) / 1000
 
     st.markdown("---")
-
+    
     # --- CHECKBOX PARA HABILITAR CÁLCULO FINANCEIRO ---
     calcular_financeiro = st.checkbox("Calcular retorno financeiro")
-
     if calcular_financeiro:
+        # (Código para parâmetros financeiros permanece o mesmo)
         st.subheader("Parâmetros do Cálculo Financeiro")
-        combustiveis = {
-            "Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80},
-            "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},
-            "Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},
-            "Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}
-        }
+        combustiveis = {"Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},"Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},"Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}}
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
-
         editar_valor = st.checkbox("Editar custo do combustível/energia")
         if editar_valor:
             valor_comb = st.number_input("Custo combustível (R$)", value=comb_sel_obj['v'], step=0.01, min_value=0.0)
         else:
             valor_comb = comb_sel_obj['v']
-
         col_fin1, col_fin2, col_fin3 = st.columns(3)
         m2 = col_fin1.number_input("Área do projeto (m²)", 1.0, value=10.0)
         h_dia = col_fin2.number_input("Horas de operação/dia", 1.0, 24.0, 8.0)
         d_sem = col_fin3.number_input("Dias de operação/semana", 1, 7, 5)
+
 
     st.markdown("---")
 
     # --- BOTÃO ÚNICO DE CÁLCULO ---
     if st.button("Calcular"):
         with st.spinner("Realizando cálculos..."):
-            Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str)
+            Tf, q_com_isolante, convergiu = encontrar_temperatura_face_fria(
+                Tq, To, L_total, k_func_str, geometry, pipe_diameter_mm / 1000
+            )
 
             if convergiu:
                 st.subheader("Resultados")
-
                 perda_com_kw = q_com_isolante / 1000
-                h_sem = calcular_h_conv(Tq, To, 1.0)
+                
+                # --- Perda sem isolante ---
+                if geometry == "Superfície Plana":
+                    outer_diam_sem_isol = None # Não aplicável
+                else: # Tubulação
+                    outer_diam_sem_isol = pipe_diameter_mm / 1000
+                
+                h_sem = calcular_h_conv(Tq, To, geometry, outer_diam_sem_isol)
                 q_rad_sem = e * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                 q_conv_sem = h_sem * (Tq - To)
                 perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
@@ -272,22 +226,12 @@ with abas[0]:
                 st.success(f"🌡️ Temperatura da face fria: {Tf:.1f} °C".replace('.', ','))
                 st.info(f"⚡ Perda de calor com isolante: {perda_com_kw:.3f} kW/m²".replace('.', ','))
                 st.warning(f"⚡ Perda de calor sem isolante: {perda_sem_kw:.3f} kW/m²".replace('.', ','))
-
-                if numero_camadas > 1:
-                    st.write("**Temperaturas Intermediárias:**")
-                    T_atual = Tq
-                    k_medio = calcular_k(k_func_str, (Tq + Tf) / 2)
-                    for i in range(numero_camadas - 1):
-                        resistencia = (espessuras[i] / 1000) / k_medio
-                        T_interface = T_atual - q_com_isolante * resistencia
-                        st.info(f"Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
-                        T_atual = T_interface
                 
                 if calcular_financeiro:
+                    # (Código para exibir resultados financeiros permanece o mesmo)
                     economia_kw_m2 = perda_sem_kw - perda_com_kw
                     custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
                     eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
-
                     st.subheader("Retorno Financeiro")
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Economia Mensal", f"R$ {eco_mensal:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
@@ -308,6 +252,8 @@ with abas[0]:
 # ABA 2: CÁLCULO TÉRMICO FRIO
 # ==============================================================================
 with abas[1]:
+    # (Código da Aba Frio permanece o mesmo)
+    st.subheader("Cálculo de Espessura Mínima para Evitar Condensação")
     material_frio_nome = st.selectbox("Escolha o material do isolante", df_isolantes['nome'].tolist(), key="mat_frio")
     k_func_str_frio = df_isolantes[df_isolantes['nome'] == material_frio_nome]['k_func'].iloc[0]
 
@@ -325,7 +271,7 @@ with abas[1]:
 
             espessura_final = None
             for L_teste in [i * 0.001 for i in range(1, 501)]:
-                Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio)
+                Tf, _, convergiu = encontrar_temperatura_face_fria(Ti_frio, Ta_frio, L_teste, k_func_str_frio, "Superfície Plana")
                 if convergiu and Tf >= T_orvalho:
                     espessura_final = L_teste
                     break

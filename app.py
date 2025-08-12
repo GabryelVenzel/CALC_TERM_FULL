@@ -340,10 +340,11 @@ with abas[0]:
                         m3.metric("Redução de Perda", f"{reducao_pct_val:.1f} %")
                 else:
                     st.error("❌ O cálculo não convergiu. Verifique os dados de entrada.")
-    
+
+
     st.markdown("---")
-    st.markdown(f"""
-    > **Nota:** Os cálculos são realizados de acordo com a norma ASTM C680.
+    st.markdown("""
+    > **Nota:** Os cálculos são realizados de acordo com as práticas recomendadas pelas normas **ASTM C680** e **ISO 12241**, em conformidade com os procedimentos da norma brasileira **ABNT NBR 16281**.
     """)
 
 with abas[1]:
@@ -403,4 +404,5 @@ with abas[1]:
                     st.success(f"✅ Espessura mínima para evitar condensação: {espessura_final * 1000:.1f} mm".replace('.',','))
                 else:
                     st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
+
 

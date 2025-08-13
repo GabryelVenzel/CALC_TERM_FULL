@@ -156,7 +156,7 @@ def preparar_pdf():
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão.")
+        st.warning("Arquivos de fonte (DejaVuSans.ttf, DejaVuSans-Bold.ttf) não encontrados. PDF usará fonte padrão.")
         font_family = 'Arial'
     return pdf, font_family
 
@@ -271,10 +271,9 @@ if df_isolantes.empty or df_acabamentos.empty:
     st.error("Não foi possível carregar os dados da planilha. Verifique as abas 'Isolantes 2' e 'Emissividade'.")
     st.stop()
 
-# --- INTERFACE LATERAL (ADMIN) - REMOVIDA ---
-
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
+
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     
@@ -467,6 +466,5 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
-
 
 

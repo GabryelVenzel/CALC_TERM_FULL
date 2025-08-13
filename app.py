@@ -168,7 +168,7 @@ def gerar_pdf(dados):
     pdf.ln(10)
     
     pdf.set_font(font_family, '', 10)
-    data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    data_hora = datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 5, f"Data da Simulação: {data_hora}", 0, 1, "R")
     pdf.ln(5)
 
@@ -232,7 +232,7 @@ def gerar_pdf_frio(dados):
     pdf.ln(10)
     
     pdf.set_font(font_family, '', 10)
-    data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    data_hora = datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 5, f"Data da Simulação: {data_hora}", 0, 1, "R")
     pdf.ln(5)
 
@@ -480,4 +480,5 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 

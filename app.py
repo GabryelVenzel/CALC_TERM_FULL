@@ -9,6 +9,7 @@ import json
 from fpdf import FPDF
 from datetime import datetime
 from io import BytesIO
+import os
 
 # --- CONFIGURAÇÕES GERAIS E ESTILO ---
 st.set_page_config(page_title="Calculadora IsolaFácil", layout="wide")
@@ -152,20 +153,18 @@ def preparar_pdf():
     pdf = FPDF()
     pdf.add_page()
     
-    # Adiciona a imagem de fundo ANTES de qualquer texto
-    try:
-        # Adiciona a imagem de fundo, cobrindo a página inteira (A4 = 210x297 mm)
-        pdf.image('fundo_relatorio.png', x=0, y=0, w=210, h=297)
-    except RuntimeError:
-        # Se o arquivo não for encontrado, o PDF continua com fundo branco
-        pass 
+    background_image_path = 'fundo_relatorio.png'
+    if os.path.exists(background_image_path):
+        pdf.image(background_image_path, x=0, y=0, w=210, h=297)
+    else:
+        st.warning(f"Aviso: Imagem de fundo '{background_image_path}' não encontrada. O PDF será gerado com fundo branco.")
     
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão.")
+        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão Arial.")
         font_family = 'Arial'
     return pdf, font_family
 

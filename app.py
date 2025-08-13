@@ -67,6 +67,31 @@ def carregar_acabamentos():
         st.error(f"Erro ao carregar acabamentos: {ex}")
         return pd.DataFrame()
 
+# --- FUNÇÕES DE ADMINISTRAÇÃO DA PLANILHA ---
+def cadastrar_isolante(nome, k_func, t_min, t_max):
+    try:
+        worksheet = get_worksheet("Isolantes 2")
+        worksheet.append_row([nome, k_func, t_min, t_max])
+        st.cache_data.clear()
+        st.success(f"Isolante '{nome}' cadastrado com sucesso!")
+    except Exception as ex:
+        st.error(f"Falha ao cadastrar: {ex}")
+
+def excluir_isolante(nome):
+    try:
+        worksheet = get_worksheet("Isolantes 2")
+        cell = worksheet.find(nome)
+        if cell:
+            worksheet.delete_rows(cell.row)
+            st.cache_data.clear()
+            st.success(f"Isolante '{nome}' excluído com sucesso!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.warning("Isolante não encontrado para exclusão.")
+    except Exception as ex:
+        st.error(f"Falha ao excluir: {ex}")
+
 # --- FUNÇÕES DE CÁLCULO ---
 def calcular_k(k_func_str, T_media):
     try:
@@ -148,36 +173,38 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
     return Tf, None, False
 
 # --- FUNÇÃO DE GERAÇÃO DE PDF ---
-def gerar_pdf(dados):
+def preparar_pdf():
     pdf = FPDF()
     pdf.add_page()
-    pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-    pdf.set_font('DejaVu', '', 16)
+    try:
+        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+        font_family = 'DejaVu'
+    except RuntimeError:
+        st.warning("Arquivos de fonte (DejaVuSans.ttf, DejaVuSans-Bold.ttf) não encontrados. PDF usará fonte padrão.")
+        font_family = 'Arial'
+    return pdf, font_family
+
+def gerar_pdf(dados):
+    pdf, font_family = preparar_pdf()
     
+    pdf.set_font(font_family, 'B', 16)
     pdf.cell(0, 10, "Relatório de Cálculo Térmico - IsolaFácil", 0, 1, "C")
     pdf.ln(10)
     
-    pdf.set_font('DejaVu', '', 10)
+    pdf.set_font(font_family, '', 10)
     data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Data da Simulação: {data_hora}", 0, 1, "R")
     pdf.ln(5)
 
-    pdf.set_font('DejaVu', 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 10, "1. Parâmetros de Entrada", 0, 1, "L")
     
     def add_linha(chave, valor):
-        y_antes = pdf.get_y()
-        pdf.set_font('DejaVu', 'B', 11)
-        pdf.multi_cell(70, 8, f" {chave}:", border=0, align='L')
-        y_depois_chave = pdf.get_y()
-        
-        pdf.set_xy(pdf.l_margin + 70, y_antes)
-        
-        pdf.set_font('DejaVu', '', 11)
+        pdf.set_font(font_family, 'B', 11)
+        pdf.cell(70, 8, f" {chave}:", border=0, ln=0, align='L')
+        pdf.set_font(font_family, '', 11)
         pdf.multi_cell(0, 8, str(valor), border=0, align='L')
-        y_depois_valor = pdf.get_y()
-        
-        pdf.set_y(max(y_depois_chave, y_depois_valor))
 
     add_linha("Material do Isolante", dados.get("material", ""))
     add_linha("Acabamento Externo", dados.get("acabamento", ""))
@@ -191,7 +218,7 @@ def gerar_pdf(dados):
     add_linha("Emissividade (e)", str(dados.get("emissividade", "")))
     pdf.ln(5)
 
-    pdf.set_font('DejaVu', 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 10, "2. Resultados do Cálculo Térmico", 0, 1, "L")
     
     add_linha("Temperatura da Face Fria", f"{dados.get('tf', 0):.1f} °C")
@@ -200,7 +227,7 @@ def gerar_pdf(dados):
     pdf.ln(5)
 
     if dados.get("calculo_financeiro", False):
-        pdf.set_font('DejaVu', 'B', 12)
+        pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 10, "3. Análise Financeira", 0, 1, "L")
         add_linha("Economia Mensal", f"R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
         add_linha("Economia Anual", f"R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
@@ -211,35 +238,25 @@ def gerar_pdf(dados):
     return buffer.getvalue()
 
 def gerar_pdf_frio(dados):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-    pdf.set_font('DejaVu', '', 16)
-    
+    pdf, font_family = preparar_pdf()
+
+    pdf.set_font(font_family, 'B', 16)
     pdf.cell(0, 10, "Relatório de Cálculo de Condensação - IsolaFácil", 0, 1, "C")
     pdf.ln(10)
     
-    pdf.set_font('DejaVu', '', 10)
+    pdf.set_font(font_family, '', 10)
     data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     pdf.cell(0, 5, f"Data da Simulação: {data_hora}", 0, 1, "R")
     pdf.ln(5)
 
-    pdf.set_font('DejaVu', 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 10, "1. Parâmetros de Entrada", 0, 1, "L")
     
     def add_linha(chave, valor):
-        y_antes = pdf.get_y()
-        pdf.set_font('DejaVu', 'B', 11)
-        pdf.multi_cell(70, 8, f" {chave}:", border=0, align='L')
-        y_depois_chave = pdf.get_y()
-        
-        pdf.set_xy(pdf.l_margin + 70, y_antes)
-        
-        pdf.set_font('DejaVu', '', 11)
+        pdf.set_font(font_family, 'B', 11)
+        pdf.cell(70, 8, f" {chave}:", border=0, ln=0, align='L')
+        pdf.set_font(font_family, '', 11)
         pdf.multi_cell(0, 8, str(valor), border=0, align='L')
-        y_depois_valor = pdf.get_y()
-        
-        pdf.set_y(max(y_depois_chave, y_depois_valor))
 
     add_linha("Material do Isolante", dados.get("material", ""))
     add_linha("Tipo de Superfície", dados.get("geometria", ""))
@@ -251,7 +268,7 @@ def gerar_pdf_frio(dados):
     add_linha("Velocidade do Vento", f"{dados.get('vento', 0)} m/s")
     pdf.ln(5)
 
-    pdf.set_font('DejaVu', 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 10, "2. Resultados do Cálculo", 0, 1, "L")
     
     add_linha("Temperatura de Orvalho", f"{dados.get('t_orvalho', 0):.1f} °C")
@@ -472,5 +489,6 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 

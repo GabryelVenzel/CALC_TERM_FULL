@@ -148,109 +148,146 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
         
     return Tf, None, False
 
-# --- CLASSE DE PDF PERSONALIZADA PARA CABEÇALHO E RODAPÉ ---
-class PDF(FPDF):
-    def __init__(self, font_family='Arial', title='Relatório de Cálculo'):
-        super().__init__()
-        self.font_family = font_family
-        self.report_title = title
-        try:
-            self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-            self.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
-            self.font_family = 'DejaVu'
-        except RuntimeError:
-            self.font_family = 'Arial'
-
-    def header(self):
-        if os.path.exists('fundo_relatorio.png'):
-            self.image('fundo_relatorio.png', x=0, y=0, w=210, h=297)
-        
-        self.set_y(25)
-        self.set_font(self.font_family, 'B', 18)
-        self.set_text_color(255, 255, 255)
-        self.cell(0, 10, self.report_title, 0, 1, "C")
-        
-        self.set_text_color(0, 0, 0)
-        self.set_font(self.font_family, '', 11)
-        self.set_y(55)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font(self.font_family, '', 10)
-        data_simulacao = datetime.now().strftime("%d/%m/%Y")
-        self.cell(0, 10, f"Data da Simulação: {data_simulacao}", 0, 0, 'R')
-
 # --- FUNÇÕES DE GERAÇÃO DE PDF ---
-def gerar_pdf(dados):
-    pdf = PDF(title="Relatório de Cálculo Térmico")
+def preparar_pdf():
+    pdf = FPDF()
     pdf.add_page()
     
-    def add_linha(chave, valor):
-        pdf.set_font(pdf.font_family, 'B', 11)
-        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
-        pdf.set_font(pdf.font_family, '', 11)
-        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
-        pdf.ln(2)
-        
-    pdf.set_font(pdf.font_family, 'B', 12)
-    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
-    add_linha("Material do Isolante", dados.get("material", ""))
-    add_linha("Acabamento Externo", dados.get("acabamento", ""))
-    add_linha("Tipo de Superfície", dados.get("geometria", ""))
-    if dados.get("geometria") == "Tubulação":
-        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
-    add_linha("Número de Camadas", str(dados.get("num_camadas", "")))
-    add_linha("Espessura Total", f"{dados.get('esp_total', 0)} mm")
-    add_linha("Temp. da Face Quente", f"{dados.get('tq', 0)} °C")
-    add_linha("Temp. Ambiente", f"{dados.get('to', 0)} °C")
-    add_linha("Emissividade (e)", str(dados.get("emissividade", "")))
+    background_image_path = 'fundo_relatorio.png'
+    if os.path.exists(background_image_path):
+        pdf.image(background_image_path, x=0, y=0, w=210, h=297)
+    else:
+        st.warning(f"Aviso: Imagem de fundo '{background_image_path}' não encontrada. O PDF será gerado com fundo branco.")
+    
+    try:
+        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+        font_family = 'DejaVu'
+    except RuntimeError:
+        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão Arial.")
+        font_family = 'Arial'
+    return pdf, font_family
+
+def gerar_pdf(dados):
+    pdf, font_family = preparar_pdf()
+    
+    # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
+    pdf.set_y(8)
+    # Define a cor do texto como branco
+    pdf.set_text_color(255, 255, 255)
+    
+    pdf.set_font(font_family, 'B', 16)
+    pdf.cell(0, 10, "Relatório de Cálculo Térmico", 0, 1, "C")
+    
+    # Restaura a cor do texto para preto para o restante do documento
+    pdf.set_text_color(0, 0, 0)
+    
+    pdf.ln(10)
+    
+    pdf.set_font(font_family, '', 10)
+    data_simulacao = datetime.now().strftime("%d/%m/%Y")
+    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "L")
     pdf.ln(5)
 
-    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    pdf.set_font(font_family, '', 11)
+    
+    texto_entradas = (
+        f"Material do Isolante: {dados.get('material', '')}\n"
+        f"Acabamento Externo: {dados.get('acabamento', '')}\n"
+        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
+    )
+    if dados.get("geometria") == "Tubulação":
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+    texto_entradas += (
+        f"Número de Camadas: {dados.get('num_camadas', '')}\n"
+        f"Espessura Total: {dados.get('esp_total', 0)} mm\n"
+        f"Temp. da Face Quente: {dados.get('tq', 0)} °C\n"
+        f"Temp. Ambiente: {dados.get('to', 0)} °C\n"
+        f"Emissividade (e): {dados.get('emissividade', '')}\n"
+    )
+    pdf.multi_cell(0, 6, texto_entradas.strip())
+    pdf.ln(5)
+
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
-    add_linha("Temperatura da Face Fria", f"{dados.get('tf', 0):.1f} °C")
-    add_linha("Perda de Calor com Isolante", f"{dados.get('perda_com_kw', 0):.3f} kW/m²")
-    add_linha("Perda de Calor sem Isolante", f"{dados.get('perda_sem_kw', 0):.3f} kW/m²")
+    pdf.set_font(font_family, '', 11)
+
+    texto_resultados = (
+        f"Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
+        f"Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
+        f"Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
+    )
+    pdf.multi_cell(0, 6, texto_resultados.strip())
     pdf.ln(5)
 
     if dados.get("calculo_financeiro", False):
-        pdf.set_font(pdf.font_family, 'B', 12)
-        pdf.cell(0, 8, "3. Análise Financeira", ln=1)
-        add_linha("Economia Mensal", f"R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        add_linha("Economia Anual", f"R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        add_linha("Redução de Perda", f"{dados.get('reducao_pct', 0):.1f} %")
+        pdf.set_font(font_family, 'B', 12)
+        pdf.cell(0, 8, "3. Análise Financeira e Ambiental", ln=1)
+        pdf.set_font(font_family, '', 11)
+     
+        texto_financeiro = (
+            f"Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
+            f"Carbono Evitado: {dados.get('co2_ton_ano', 0):.2f} tCO2e/ano\n"
+        )
+        pdf.multi_cell(0, 6, texto_financeiro.strip())
 
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
 
 def gerar_pdf_frio(dados):
-    pdf = PDF(title="Relatório de Cálculo de Condensação")
-    pdf.add_page()
-    
-    def add_linha(chave, valor):
-        pdf.set_font(pdf.font_family, 'B', 11)
-        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
-        pdf.set_font(pdf.font_family, '', 11)
-        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
-        pdf.ln(2)
+    pdf, font_family = preparar_pdf()
 
-    pdf.set_font(pdf.font_family, 'B', 12)
-    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
-    add_linha("Material do Isolante", dados.get("material", ""))
-    add_linha("Tipo de Superfície", dados.get("geometria", ""))
-    if dados.get("geometria") == "Tubulação":
-        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
-    add_linha("Temp. Interna", f"{dados.get('ti', 0)} °C")
-    add_linha("Temp. Ambiente", f"{dados.get('ta', 0)} °C")
-    add_linha("Umidade Relativa", f"{dados.get('ur', 0)} %")
-    add_linha("Velocidade do Vento", f"{dados.get('vento', 0)} m/s")
+    # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
+    pdf.set_y(8)
+    # Define a cor do texto como branco
+    pdf.set_text_color(255, 255, 255)
+
+    pdf.set_font(font_family, 'B', 16)
+    pdf.cell(0, 10, "Relatório de Cálculo de Condensação", 0, 1, "C")
+    
+    # Restaura a cor do texto para preto para o restante do documento
+    pdf.set_text_color(0, 0, 0)
+
+    pdf.ln(10)
+    
+    pdf.set_font(font_family, '', 10)
+    data_simulacao = datetime.now().strftime("%d/%m/%Y")
+    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "L")
     pdf.ln(5)
 
-    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.set_font(font_family, 'B', 12)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    pdf.set_font(font_family, '', 11)
+
+    texto_entradas = (
+        f"Material do Isolante: {dados.get('material', '')}\n"
+        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
+    )
+    if dados.get("geometria") == "Tubulação":
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+    texto_entradas += (
+        f"Temp. Interna: {dados.get('ti', 0)} °C\n"
+        f"Temp. Ambiente: {dados.get('ta', 0)} °C\n"
+        f"Umidade Relativa: {dados.get('ur', 0)} %\n"
+        f"Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
+    )
+    pdf.multi_cell(0, 6, texto_entradas.strip())
+    pdf.ln(5)
+
+    pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "2. Resultados do Cálculo", ln=1)
-    add_linha("Temperatura de Orvalho", f"{dados.get('t_orvalho', 0):.1f} °C")
-    add_linha("Espessura Mínima Recomendada", f"{dados.get('espessura_final', 0):.1f} mm")
+    pdf.set_font(font_family, '', 11)
+
+    texto_resultados = (
+        f"Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
+        f"Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
+    )
+    pdf.multi_cell(0, 6, texto_resultados.strip())
 
     buffer = BytesIO()
     pdf.output(buffer)
@@ -280,7 +317,6 @@ if df_isolantes.empty or df_acabamentos.empty:
 
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
-
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     
@@ -316,18 +352,27 @@ with abas[0]:
 
     st.markdown("---")
     
-    calcular_financeiro = st.checkbox("Calcular retorno financeiro")
+    calcular_financeiro = st.checkbox("Calcular retorno financeiro e ambiental")
     if calcular_financeiro:
-        st.subheader("Parâmetros do Cálculo Financeiro")
-        st.info("💡 Os custos de combustível são pré-configurados com valores médios de mercado...")
-        combustiveis = {"Óleo BPF (kg)": {"v": 3.50, "pc": 11.34, "ef": 0.80}, "Gás Natural (m³)": {"v": 3.60, "pc": 9.65, "ef": 0.75},"Lenha Eucalipto 30% umidade (ton)": {"v": 200.00, "pc": 3500.00, "ef": 0.70},"Eletricidade (kWh)": {"v": 0.75, "pc": 1.00, "ef": 1.00}}
+        st.subheader("Parâmetros do Cálculo Financeiro e Ambiental")
+        st.info("💡 Os custos e fatores de emissão são pré-configurados com valores médios de mercado.")
+        
+        combustiveis = {
+            "Óleo BPF (kg)":                   {"v": 3.50, "pc": 11.34, "ef": 0.80, "fator_emissao": 3.15},
+            "Gás Natural (m³)":                {"v": 3.60, "pc": 9.65,  "ef": 0.75, "fator_emissao": 2.0},
+            "Lenha Eucalipto 30% umidade (ton)": {"v": 200.00,"pc": 3500.00,"ef": 0.70, "fator_emissao": 1260},
+            "Eletricidade (kWh)":                {"v": 0.75, "pc": 1.00,  "ef": 1.00, "fator_emissao": 0.0358}
+        }
+        
         comb_sel_nome = st.selectbox("Tipo de combustível", list(combustiveis.keys()))
         comb_sel_obj = combustiveis[comb_sel_nome]
+        
         editar_valor = st.checkbox("Editar custo do combustível/energia")
         if editar_valor:
             valor_comb = st.number_input("Custo combustível (R$)", min_value=0.10, value=comb_sel_obj['v'], step=0.01, format="%.2f")
         else:
             valor_comb = comb_sel_obj['v']
+            
         col_fin1, col_fin2, col_fin3 = st.columns(3)
         m2 = col_fin1.number_input("Área do projeto (m²)", 1.0, value=10.0)
         h_dia = col_fin2.number_input("Horas de operação/dia", 1.0, 24.0, 8.0)
@@ -351,14 +396,34 @@ with abas[0]:
                     q_rad_sem = emissividade_selecionada * sigma * ((Tq + 273.15)**4 - (To + 273.15)**4)
                     q_conv_sem = h_sem * (Tq - To)
                     perda_sem_kw = (q_rad_sem + q_conv_sem) / 1000
-                    dados_para_relatorio = {"material": material_selecionado_nome, "acabamento": acabamento_selecionado_nome, "geometria": geometry, "diametro_tubo": pipe_diameter_mm, "num_camadas": numero_camadas, "esp_total": L_total, "tq": Tq, "to": To, "emissividade": emissividade_selecionada, "tf": Tf, "perda_com_kw": perda_com_kw, "perda_sem_kw": perda_sem_kw, "calculo_financeiro": calcular_financeiro}
+                    
+                    dados_para_relatorio = {
+                        "material": material_selecionado_nome, "acabamento": acabamento_selecionado_nome, 
+                        "geometria": geometry, "diametro_tubo": pipe_diameter_mm, "num_camadas": numero_camadas, 
+                        "esp_total": L_total, "tq": Tq, "to": To, "emissividade": emissividade_selecionada, 
+                        "tf": Tf, "perda_com_kw": perda_com_kw, "perda_sem_kw": perda_sem_kw, 
+                        "calculo_financeiro": calcular_financeiro
+                    }
+
                     if calcular_financeiro:
                         economia_kw_m2 = perda_sem_kw - perda_com_kw
                         custo_kwh = valor_comb / (comb_sel_obj['pc'] * comb_sel_obj['ef'])
                         eco_mensal = economia_kw_m2 * custo_kwh * m2 * h_dia * d_sem * 4.33
                         eco_anual = eco_mensal * 12
                         reducao_pct = ((economia_kw_m2 / perda_sem_kw) * 100) if perda_sem_kw > 0 else 0
-                        dados_para_relatorio.update({"eco_mensal": eco_mensal, "eco_anual": eco_anual, "reducao_pct": reducao_pct})
+                        
+                        # Cálculo de Carbono
+                        energia_efetiva_anual_kwh = economia_kw_m2 * m2 * h_dia * d_sem * 4.33 * 12
+                        energia_bruta_anual_kwh = energia_efetiva_anual_kwh / comb_sel_obj['ef']
+                        quantidade_comb_poupado = energia_bruta_anual_kwh / comb_sel_obj['pc']
+                        co2_evitado_anual_kg = quantidade_comb_poupado * comb_sel_obj['fator_emissao']
+                        co2_evitado_anual_ton = co2_evitado_anual_kg / 1000
+                        
+                        dados_para_relatorio.update({
+                            "eco_mensal": eco_mensal, "eco_anual": eco_anual, 
+                            "reducao_pct": reducao_pct, "co2_ton_ano": co2_evitado_anual_ton
+                        })
+
                     st.session_state.dados_ultima_simulacao = dados_para_relatorio
                 else:
                     st.session_state.calculo_realizado = False
@@ -368,9 +433,11 @@ with abas[0]:
         dados = st.session_state.dados_ultima_simulacao
         st.subheader("Resultados")
         st.success(f"🌡️ Temperatura da face fria: {dados['tf']:.1f} °C".replace('.', ','))
+        
         if dados['num_camadas'] > 1:
             T_atual = dados['tq']
             k_medio = calcular_k(k_func_str, (dados['tq'] + dados['tf']) / 2)
+            q_com_isolante = dados['perda_com_kw'] * 1000
             if k_medio and q_com_isolante is not None:
                 for i in range(dados['num_camadas'] - 1):
                     if dados['geometria'] == "Superfície Plana":
@@ -385,14 +452,25 @@ with abas[0]:
                     T_interface = T_atual - delta_T_camada
                     st.success(f"↪️ Temp. entre camada {i+1} e {i+2}: {T_interface:.1f} °C".replace('.', ','))
                     T_atual = T_interface
+                    
         st.info(f"⚡ Perda de calor com isolante: {dados['perda_com_kw']:.3f} kW/m²".replace('.', ','))
         st.warning(f"⚡ Perda de calor sem isolante: {dados['perda_sem_kw']:.3f} kW/m²".replace('.', ','))
+        
         if dados.get('calculo_financeiro', False):
-            st.subheader("Retorno Financeiro")
+            st.subheader("Retorno Financeiro e Ambiental")
             m1, m2, m3 = st.columns(3)
-            m1.metric("Economia Mensal", f"R$ {dados['eco_mensal']:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-            m2.metric("Economia Anual", f"R$ {dados['eco_anual']:,.2f}".replace(',','X').replace('.',',').replace('X','.'))
-            m3.metric("Redução de Perda", f"{dados['reducao_pct']:.1f} %")
+            
+            eco_anual_str = f"R$ {dados['eco_anual']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            eco_mensal_str = f"R$ {dados['eco_mensal']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            
+            m1.metric(
+                label="Economia Anual",
+                value=eco_anual_str,
+                help=f"Economia mensal estimada: {eco_mensal_str}"
+            )
+            m2.metric("Redução de Perda", f"{dados['reducao_pct']:.1f} %")
+            m3.metric("Carbono Evitado", f"{dados.get('co2_ton_ano', 0):.2f} tCO₂e/ano")
+
         st.markdown("---")
         pdf_bytes = gerar_pdf(dados)
         st.download_button(label="Download Relatório PDF", data=pdf_bytes, file_name=f"Relatorio_IsolaFacil_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", key="pdf_quente")
@@ -473,9 +551,6 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
-
-
-
 
 
 

@@ -172,12 +172,12 @@ def gerar_pdf(dados):
     pdf, font_family = preparar_pdf()
     
     # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
-    pdf.set_y(7)
+    pdf.set_y(8)
     # Define a cor do texto como branco
     pdf.set_text_color(255, 255, 255)
     
     pdf.set_font(font_family, 'B', 16)
-    pdf.cell(0, 10, "Relatório de Cálculo Térmico", 0, 1, "C")
+    pdf.cell(0, 10, "Relatório de Cálculo Térmico - IsolaFácil", 0, 1, "C")
     
     # Restaura a cor do texto para preto para o restante do documento
     pdf.set_text_color(0, 0, 0)
@@ -193,19 +193,20 @@ def gerar_pdf(dados):
     pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
     pdf.set_font(font_family, '', 11)
     
+    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_entradas = (
-        f"  Material do Isolante: {dados.get('material', '')}\n"
-        f"  Acabamento Externo: {dados.get('acabamento', '')}\n"
-        f"  Tipo de Superfície: {dados.get('geometria', '')}\n"
+        f"Material do Isolante: {dados.get('material', '')}\n"
+        f"Acabamento Externo: {dados.get('acabamento', '')}\n"
+        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
     )
     if dados.get("geometria") == "Tubulação":
-        texto_entradas += f"  Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
     texto_entradas += (
-        f"  Número de Camadas: {dados.get('num_camadas', '')}\n"
-        f"  Espessura Total: {dados.get('esp_total', 0)} mm\n"
-        f"  Temp. da Face Quente: {dados.get('tq', 0)} °C\n"
-        f"  Temp. Ambiente: {dados.get('to', 0)} °C\n"
-        f"  Emissividade (e): {dados.get('emissividade', '')}\n"
+        f"Número de Camadas: {dados.get('num_camadas', '')}\n"
+        f"Espessura Total: {dados.get('esp_total', 0)} mm\n"
+        f"Temp. da Face Quente: {dados.get('tq', 0)} °C\n"
+        f"Temp. Ambiente: {dados.get('to', 0)} °C\n"
+        f"Emissividade (e): {dados.get('emissividade', '')}\n"
     )
     pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
@@ -214,10 +215,11 @@ def gerar_pdf(dados):
     pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
     pdf.set_font(font_family, '', 11)
 
+    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_resultados = (
-        f"  Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
-        f"  Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
-        f"  Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
+        f"Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
+        f"Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
+        f"Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
     )
     pdf.multi_cell(0, 6, texto_resultados.strip())
     pdf.ln(5)
@@ -226,10 +228,11 @@ def gerar_pdf(dados):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 8, "3. Análise Financeira", ln=1)
         pdf.set_font(font_family, '', 11)
+        # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
         texto_financeiro = (
-            f"  Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
-            f"  Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
-            f"  Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
+            f"Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
         )
         pdf.multi_cell(0, 6, texto_financeiro.strip())
 
@@ -240,18 +243,16 @@ def gerar_pdf(dados):
 def gerar_pdf_frio(dados):
     pdf, font_family = preparar_pdf()
 
-    # --- MODIFICAÇÕES AQUI ---
     # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
-    pdf.set_y(7)
+    pdf.set_y(8)
     # Define a cor do texto como branco
     pdf.set_text_color(255, 255, 255)
 
     pdf.set_font(font_family, 'B', 16)
-    pdf.cell(0, 10, "Relatório de Cálculo de Condensação", 0, 1, "C")
+    pdf.cell(0, 10, "Relatório de Cálculo de Condensação - IsolaFácil", 0, 1, "C")
     
     # Restaura a cor do texto para preto para o restante do documento
     pdf.set_text_color(0, 0, 0)
-    # --- FIM DAS MODIFICAÇÕES ---
 
     pdf.ln(10)
     
@@ -264,17 +265,18 @@ def gerar_pdf_frio(dados):
     pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
     pdf.set_font(font_family, '', 11)
 
+    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_entradas = (
-        f"  Material do Isolante: {dados.get('material', '')}\n"
-        f"  Tipo de Superfície: {dados.get('geometria', '')}\n"
+        f"Material do Isolante: {dados.get('material', '')}\n"
+        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
     )
     if dados.get("geometria") == "Tubulação":
-        texto_entradas += f"  Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
     texto_entradas += (
-        f"  Temp. Interna: {dados.get('ti', 0)} °C\n"
-        f"  Temp. Ambiente: {dados.get('ta', 0)} °C\n"
-        f"  Umidade Relativa: {dados.get('ur', 0)} %\n"
-        f"  Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
+        f"Temp. Interna: {dados.get('ti', 0)} °C\n"
+        f"Temp. Ambiente: {dados.get('ta', 0)} °C\n"
+        f"Umidade Relativa: {dados.get('ur', 0)} %\n"
+        f"Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
     )
     pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
@@ -283,9 +285,10 @@ def gerar_pdf_frio(dados):
     pdf.cell(0, 8, "2. Resultados do Cálculo", ln=1)
     pdf.set_font(font_family, '', 11)
 
+    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_resultados = (
-        f"  Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
-        f"  Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
+        f"Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
+        f"Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
     )
     pdf.multi_cell(0, 6, texto_resultados.strip())
 
@@ -509,6 +512,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 

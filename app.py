@@ -148,69 +148,118 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
         
     return Tf, None, False
 
-# --- FUNÇÕES DE GERAÇÃO DE PDF ---
-def preparar_pdf_e_fontes():
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Adiciona imagem de fundo
-    if os.path.exists('fundo_relatorio.png'):
-        pdf.image('fundo_relatorio.png', x=0, y=0, w=210, h=297)
-    
-    # Adiciona fontes
+# --- CLASSE DE PDF PERSONALIZADA PARA CABEÇALHO E RODAPÉ ---
+class PDF(FPDF):
+    def __init__(self, font_family='Arial', title='Relatório de Cálculo Térmico'):
+        super().__init__()
+        self.font_family = font_family
+        self.report_title = title
+
+    def header(self):
+        if os.path.exists('fundo_relatorio.png'):
+            self.image('fundo_relatorio.png', x=0, y=0, w=210, h=297)
+        
+        self.set_y(25)
+        self.set_font(self.font_family, 'B', 18)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 10, self.report_title, 0, 1, "C")
+        
+        # Resetar fontes e cores para o corpo do texto
+        self.set_font(self.font_family, '', 11)
+        self.set_text_color(0, 0, 0)
+        self.ln(20) # Espaço após o cabeçalho
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font(self.font_family, '', 10)
+        data_simulacao = datetime.now().strftime("%d/%m/%Y")
+        self.cell(0, 10, f"Data da Simulação: {data_simulacao}", 0, 0, 'R')
+
+# --- FUNÇÕES DE GERAÇÃO DE PDF (ATUALIZADAS) ---
+def gerar_pdf(dados):
+    pdf = PDF(title="Relatório de Cálculo Térmico")
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
-        font_family = 'DejaVu'
+        pdf.font_family = 'DejaVu'
     except RuntimeError:
-        font_family = 'Arial'
-    return pdf, font_family
-
-def add_pdf_footer(pdf, font_family):
-    pdf.set_y(-15) # Posição a 1.5 cm do final
-    pdf.set_font(font_family, '', 10)
-    data_simulacao = datetime.now().strftime("%d/%m/%Y")
-    pdf.cell(0, 10, f"Data da Simulação: {data_simulacao}", 0, 0, 'R')
-
-def gerar_pdf(dados):
-    pdf, font_family = preparar_pdf_e_fontes()
+        pass
+    pdf.alias_nb_pages()
+    pdf.add_page()
     
-    # Cabeçalho
-    pdf.set_y(25) # Posição vertical do título
-    pdf.set_font(font_family, 'B', 16)
-    pdf.set_text_color(255, 255, 255) # Cor branca
-    pdf.cell(0, 10, "Relatório de Cálculo Térmico", 0, 1, "C")
-    pdf.set_text_color(0, 0, 0) # Reseta para cor preta
-    pdf.ln(20)
+    def add_linha(chave, valor):
+        pdf.set_font(pdf.font_family, 'B', 11)
+        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
+        pdf.set_font(pdf.font_family, '', 11)
+        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
+        pdf.ln(2)
+        
+    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    add_linha("Material do Isolante", dados.get("material", ""))
+    add_linha("Acabamento Externo", dados.get("acabamento", ""))
+    add_linha("Tipo de Superfície", dados.get("geometria", ""))
+    if dados.get("geometria") == "Tubulação":
+        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
+    add_linha("Número de Camadas", str(dados.get("num_camadas", "")))
+    add_linha("Espessura Total", f"{dados.get('esp_total', 0)} mm")
+    add_linha("Temp. da Face Quente", f"{dados.get('tq', 0)} °C")
+    add_linha("Temp. Ambiente", f"{dados.get('to', 0)} °C")
+    add_linha("Emissividade (e)", str(dados.get("emissividade", "")))
+    pdf.ln(5)
 
-    # Conteúdo...
-    pdf.set_font(font_family, 'B', 12)
-    # ... (O resto da lógica de geração de PDF permanece a mesma)
+    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
+    add_linha("Temperatura da Face Fria", f"{dados.get('tf', 0):.1f} °C")
+    add_linha("Perda de Calor com Isolante", f"{dados.get('perda_com_kw', 0):.3f} kW/m²")
+    add_linha("Perda de Calor sem Isolante", f"{dados.get('perda_sem_kw', 0):.3f} kW/m²")
+    pdf.ln(5)
 
-    # Rodapé
-    add_pdf_footer(pdf, font_family)
+    if dados.get("calculo_financeiro", False):
+        pdf.set_font(pdf.font_family, 'B', 12)
+        pdf.cell(0, 8, "3. Análise Financeira", ln=1)
+        add_linha("Economia Mensal", f"R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        add_linha("Economia Anual", f"R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        add_linha("Redução de Perda", f"{dados.get('reducao_pct', 0):.1f} %")
 
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
 
 def gerar_pdf_frio(dados):
-    pdf, font_family = preparar_pdf_e_fontes()
+    pdf = PDF(title="Relatório de Cálculo de Condensação")
+    try:
+        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+        pdf.font_family = 'DejaVu'
+    except RuntimeError:
+        pass
+    pdf.alias_nb_pages()
+    pdf.add_page()
 
-    # Cabeçalho
-    pdf.set_y(25)
-    pdf.set_font(font_family, 'B', 16)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 10, "Relatório de Cálculo de Condensação", 0, 1, "C")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(20)
+    def add_linha(chave, valor):
+        pdf.set_font(pdf.font_family, 'B', 11)
+        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
+        pdf.set_font(pdf.font_family, '', 11)
+        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
+        pdf.ln(2)
 
-    # Conteúdo...
-    pdf.set_font(font_family, 'B', 12)
-    # ... (O resto da lógica de geração de PDF permanece a mesma)
+    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    add_linha("Material do Isolante", dados.get("material", ""))
+    add_linha("Tipo de Superfície", dados.get("geometria", ""))
+    if dados.get("geometria") == "Tubulação":
+        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
+    add_linha("Temp. Interna", f"{dados.get('ti', 0)} °C")
+    add_linha("Temp. Ambiente", f"{dados.get('ta', 0)} °C")
+    add_linha("Umidade Relativa", f"{dados.get('ur', 0)} %")
+    add_linha("Velocidade do Vento", f"{dados.get('vento', 0)} m/s")
+    pdf.ln(5)
 
-    # Rodapé
-    add_pdf_footer(pdf, font_family)
+    pdf.set_font(pdf.font_family, 'B', 12)
+    pdf.cell(0, 8, "2. Resultados do Cálculo", ln=1)
+    add_linha("Temperatura de Orvalho", f"{dados.get('t_orvalho', 0):.1f} °C")
+    add_linha("Espessura Mínima Recomendada", f"{dados.get('espessura_final', 0):.1f} mm")
 
     buffer = BytesIO()
     pdf.output(buffer)
@@ -432,4 +481,5 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 

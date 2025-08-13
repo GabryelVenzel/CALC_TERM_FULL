@@ -152,19 +152,12 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
 def preparar_pdf():
     pdf = FPDF()
     pdf.add_page()
-    
-    background_image_path = 'fundo_relatorio.png'
-    if os.path.exists(background_image_path):
-        pdf.image(background_image_path, x=0, y=0, w=210, h=297)
-    else:
-        st.warning(f"Aviso: Imagem de fundo '{background_image_path}' não encontrada. O PDF será gerado com fundo branco.")
-    
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão Arial.")
+        # Não mostra mais aviso na tela principal para não poluir
         font_family = 'Arial'
     return pdf, font_family
 
@@ -179,43 +172,53 @@ def gerar_pdf(dados):
     data_simulacao = datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "R")
     pdf.ln(5)
-
-    pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 10, "1. Parâmetros de Entrada", 0, 1, "L")
     
-    def add_linha(chave, valor):
-        pdf.set_font(font_family, 'B', 11)
-        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
-        pdf.set_font(font_family, '', 11)
-        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
-        pdf.ln(2)
-
-    add_linha("Material do Isolante", dados.get("material", ""))
-    add_linha("Acabamento Externo", dados.get("acabamento", ""))
-    add_linha("Tipo de Superfície", dados.get("geometria", ""))
+    # --- Bloco de Texto para Entradas ---
+    pdf.set_font(font_family, 'B', 12)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    pdf.set_font(font_family, '', 11)
+    
+    texto_entradas = f"""
+    Material do Isolante: {dados.get('material', '')}
+    Acabamento Externo: {dados.get('acabamento', '')}
+    Tipo de Superfície: {dados.get('geometria', '')}
+    """
     if dados.get("geometria") == "Tubulação":
-        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
-    add_linha("Número de Camadas", str(dados.get("num_camadas", "")))
-    add_linha("Espessura Total", f"{dados.get('esp_total', 0)} mm")
-    add_linha("Temp. da Face Quente", f"{dados.get('tq', 0)} °C")
-    add_linha("Temp. Ambiente", f"{dados.get('to', 0)} °C")
-    add_linha("Emissividade (e)", str(dados.get("emissividade", "")))
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+    texto_entradas += f"""
+    Número de Camadas: {dados.get('num_camadas', '')}
+    Espessura Total: {dados.get('esp_total', 0)} mm
+    Temp. da Face Quente: {dados.get('tq', 0)} °C
+    Temp. Ambiente: {dados.get('to', 0)} °C
+    Emissividade (e): {dados.get('emissividade', '')}
+    """
+    pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
 
+    # --- Bloco de Texto para Resultados ---
     pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 10, "2. Resultados do Cálculo Térmico", 0, 1, "L")
-    
-    add_linha("Temperatura da Face Fria", f"{dados.get('tf', 0):.1f} °C")
-    add_linha("Perda de Calor com Isolante", f"{dados.get('perda_com_kw', 0):.3f} kW/m²")
-    add_linha("Perda de Calor sem Isolante", f"{dados.get('perda_sem_kw', 0):.3f} kW/m²")
+    pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
+    pdf.set_font(font_family, '', 11)
+
+    texto_resultados = (
+        f"Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
+        f"Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
+        f"Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
+    )
+    pdf.multi_cell(0, 6, texto_resultados.strip())
     pdf.ln(5)
 
+    # --- Bloco de Texto para Análise Financeira ---
     if dados.get("calculo_financeiro", False):
         pdf.set_font(font_family, 'B', 12)
-        pdf.cell(0, 10, "3. Análise Financeira", 0, 1, "L")
-        add_linha("Economia Mensal", f"R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        add_linha("Economia Anual", f"R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        add_linha("Redução de Perda", f"{dados.get('reducao_pct', 0):.1f} %")
+        pdf.cell(0, 8, "3. Análise Financeira", ln=1)
+        pdf.set_font(font_family, '', 11)
+        texto_financeiro = (
+            f"Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
+        )
+        pdf.multi_cell(0, 6, texto_financeiro.strip())
 
     buffer = BytesIO()
     pdf.output(buffer)
@@ -234,35 +237,38 @@ def gerar_pdf_frio(dados):
     pdf.ln(5)
 
     pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 10, "1. Parâmetros de Entrada", 0, 1, "L")
-    
-    def add_linha(chave, valor):
-        pdf.set_font(font_family, 'B', 11)
-        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
-        pdf.set_font(font_family, '', 11)
-        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
-        pdf.ln(2)
+    pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
+    pdf.set_font(font_family, '', 11)
 
-    add_linha("Material do Isolante", dados.get("material", ""))
-    add_linha("Tipo de Superfície", dados.get("geometria", ""))
+    texto_entradas = (
+        f"Material do Isolante: {dados.get('material', '')}\n"
+        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
+    )
     if dados.get("geometria") == "Tubulação":
-        add_linha("Diâmetro da Tubulação", f"{dados.get('diametro_tubo', 0)} mm")
-    add_linha("Temp. Interna", f"{dados.get('ti', 0)} °C")
-    add_linha("Temp. Ambiente", f"{dados.get('ta', 0)} °C")
-    add_linha("Umidade Relativa", f"{dados.get('ur', 0)} %")
-    add_linha("Velocidade do Vento", f"{dados.get('vento', 0)} m/s")
+        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+    texto_entradas += (
+        f"Temp. Interna: {dados.get('ti', 0)} °C\n"
+        f"Temp. Ambiente: {dados.get('ta', 0)} °C\n"
+        f"Umidade Relativa: {dados.get('ur', 0)} %\n"
+        f"Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
+    )
+    pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
 
     pdf.set_font(font_family, 'B', 12)
-    pdf.cell(0, 10, "2. Resultados do Cálculo", 0, 1, "L")
-    
-    add_linha("Temperatura de Orvalho", f"{dados.get('t_orvalho', 0):.1f} °C")
-    add_linha("Espessura Mínima Recomendada", f"{dados.get('espessura_final', 0):.1f} mm")
+    pdf.cell(0, 8, "2. Resultados do Cálculo", ln=1)
+    pdf.set_font(font_family, '', 11)
+
+    texto_resultados = (
+        f"Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
+        f"Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
+    )
+    pdf.multi_cell(0, 6, texto_resultados.strip())
 
     buffer = BytesIO()
     pdf.output(buffer)
     return buffer.getvalue()
-
+    
 # --- INICIALIZAÇÃO E INTERFACE PRINCIPAL ---
 try:
     logo = Image.open("logo.png")
@@ -271,6 +277,12 @@ except FileNotFoundError:
     st.warning("Arquivo 'logo.png' não encontrado.")
 
 st.title("Análise de Isolamento Térmico")
+
+# Inicialização do session state para os botões de PDF
+if 'calculo_realizado' not in st.session_state:
+    st.session_state.calculo_realizado = False
+if 'calculo_frio_realizado' not in st.session_state:
+    st.session_state.calculo_frio_realizado = False
 
 df_isolantes = carregar_isolantes()
 df_acabamentos = carregar_acabamentos()
@@ -281,6 +293,7 @@ if df_isolantes.empty or df_acabamentos.empty:
 
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
+
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     
@@ -473,5 +486,3 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
-
-

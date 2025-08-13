@@ -152,12 +152,19 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
 def preparar_pdf():
     pdf = FPDF()
     pdf.add_page()
+    
+    background_image_path = 'fundo_relatorio.png'
+    if os.path.exists(background_image_path):
+        pdf.image(background_image_path, x=0, y=0, w=210, h=297)
+    else:
+        st.warning(f"Aviso: Imagem de fundo '{background_image_path}' não encontrada. O PDF será gerado com fundo branco.")
+    
     try:
         pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        # Não mostra mais aviso na tela principal para não poluir
+        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão Arial.")
         font_family = 'Arial'
     return pdf, font_family
 
@@ -172,51 +179,48 @@ def gerar_pdf(dados):
     data_simulacao = datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "R")
     pdf.ln(5)
-    
-    # --- Bloco de Texto para Entradas ---
+
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
     pdf.set_font(font_family, '', 11)
     
-    texto_entradas = f"""
-    Material do Isolante: {dados.get('material', '')}
-    Acabamento Externo: {dados.get('acabamento', '')}
-    Tipo de Superfície: {dados.get('geometria', '')}
-    """
+    texto_entradas = (
+        f"  Material do Isolante: {dados.get('material', '')}\n"
+        f"  Acabamento Externo: {dados.get('acabamento', '')}\n"
+        f"  Tipo de Superfície: {dados.get('geometria', '')}\n"
+    )
     if dados.get("geometria") == "Tubulação":
-        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
-    texto_entradas += f"""
-    Número de Camadas: {dados.get('num_camadas', '')}
-    Espessura Total: {dados.get('esp_total', 0)} mm
-    Temp. da Face Quente: {dados.get('tq', 0)} °C
-    Temp. Ambiente: {dados.get('to', 0)} °C
-    Emissividade (e): {dados.get('emissividade', '')}
-    """
+        texto_entradas += f"  Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+    texto_entradas += (
+        f"  Número de Camadas: {dados.get('num_camadas', '')}\n"
+        f"  Espessura Total: {dados.get('esp_total', 0)} mm\n"
+        f"  Temp. da Face Quente: {dados.get('tq', 0)} °C\n"
+        f"  Temp. Ambiente: {dados.get('to', 0)} °C\n"
+        f"  Emissividade (e): {dados.get('emissividade', '')}\n"
+    )
     pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
 
-    # --- Bloco de Texto para Resultados ---
     pdf.set_font(font_family, 'B', 12)
     pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
     pdf.set_font(font_family, '', 11)
 
     texto_resultados = (
-        f"Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
-        f"Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
-        f"Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
+        f"  Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
+        f"  Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
+        f"  Perda de Calor sem Isolante: {dados.get('perda_sem_kw', 0):.3f} kW/m²\n"
     )
     pdf.multi_cell(0, 6, texto_resultados.strip())
     pdf.ln(5)
 
-    # --- Bloco de Texto para Análise Financeira ---
     if dados.get("calculo_financeiro", False):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 8, "3. Análise Financeira", ln=1)
         pdf.set_font(font_family, '', 11)
         texto_financeiro = (
-            f"Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
-            f"Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
-            f"Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
+            f"  Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"  Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
+            f"  Redução de Perda: {dados.get('reducao_pct', 0):.1f} %\n"
         )
         pdf.multi_cell(0, 6, texto_financeiro.strip())
 
@@ -241,16 +245,16 @@ def gerar_pdf_frio(dados):
     pdf.set_font(font_family, '', 11)
 
     texto_entradas = (
-        f"Material do Isolante: {dados.get('material', '')}\n"
-        f"Tipo de Superfície: {dados.get('geometria', '')}\n"
+        f"  Material do Isolante: {dados.get('material', '')}\n"
+        f"  Tipo de Superfície: {dados.get('geometria', '')}\n"
     )
     if dados.get("geometria") == "Tubulação":
-        texto_entradas += f"Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
+        texto_entradas += f"  Diâmetro da Tubulação: {dados.get('diametro_tubo', 0)} mm\n"
     texto_entradas += (
-        f"Temp. Interna: {dados.get('ti', 0)} °C\n"
-        f"Temp. Ambiente: {dados.get('ta', 0)} °C\n"
-        f"Umidade Relativa: {dados.get('ur', 0)} %\n"
-        f"Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
+        f"  Temp. Interna: {dados.get('ti', 0)} °C\n"
+        f"  Temp. Ambiente: {dados.get('ta', 0)} °C\n"
+        f"  Umidade Relativa: {dados.get('ur', 0)} %\n"
+        f"  Velocidade do Vento: {dados.get('vento', 0)} m/s\n"
     )
     pdf.multi_cell(0, 6, texto_entradas.strip())
     pdf.ln(5)
@@ -260,8 +264,8 @@ def gerar_pdf_frio(dados):
     pdf.set_font(font_family, '', 11)
 
     texto_resultados = (
-        f"Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
-        f"Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
+        f"  Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
+        f"  Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
     )
     pdf.multi_cell(0, 6, texto_resultados.strip())
 
@@ -293,7 +297,6 @@ if df_isolantes.empty or df_acabamentos.empty:
 
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
-
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     

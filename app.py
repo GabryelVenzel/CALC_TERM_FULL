@@ -193,7 +193,6 @@ def gerar_pdf(dados):
     pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
     pdf.set_font(font_family, '', 11)
     
-    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_entradas = (
         f"Material do Isolante: {dados.get('material', '')}\n"
         f"Acabamento Externo: {dados.get('acabamento', '')}\n"
@@ -215,7 +214,6 @@ def gerar_pdf(dados):
     pdf.cell(0, 8, "2. Resultados do Cálculo Térmico", ln=1)
     pdf.set_font(font_family, '', 11)
 
-    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_resultados = (
         f"Temperatura da Face Fria: {dados.get('tf', 0):.1f} °C\n"
         f"Perda de Calor com Isolante: {dados.get('perda_com_kw', 0):.3f} kW/m²\n"
@@ -228,7 +226,7 @@ def gerar_pdf(dados):
         pdf.set_font(font_family, 'B', 12)
         pdf.cell(0, 8, "3. Análise Financeira", ln=1)
         pdf.set_font(font_family, '', 11)
-        # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
+     
         texto_financeiro = (
             f"Economia Mensal: R$ {dados.get('eco_mensal', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
             f"Economia Anual: R$ {dados.get('eco_anual', 0):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') + "\n"
@@ -265,7 +263,6 @@ def gerar_pdf_frio(dados):
     pdf.cell(0, 8, "1. Parâmetros de Entrada", ln=1)
     pdf.set_font(font_family, '', 11)
 
-    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_entradas = (
         f"Material do Isolante: {dados.get('material', '')}\n"
         f"Tipo de Superfície: {dados.get('geometria', '')}\n"
@@ -285,7 +282,6 @@ def gerar_pdf_frio(dados):
     pdf.cell(0, 8, "2. Resultados do Cálculo", ln=1)
     pdf.set_font(font_family, '', 11)
 
-    # --- MODIFICAÇÃO AQUI: Removidos os espaços do início de cada linha ---
     texto_resultados = (
         f"Temperatura de Orvalho: {dados.get('t_orvalho', 0):.1f} °C\n"
         f"Espessura Mínima Recomendada: {dados.get('espessura_final', 0):.1f} mm\n"
@@ -512,6 +508,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 

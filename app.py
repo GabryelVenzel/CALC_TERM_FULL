@@ -171,7 +171,6 @@ def preparar_pdf():
 def gerar_pdf(dados):
     pdf, font_family = preparar_pdf()
     
-    # --- MODIFICAÇÕES AQUI ---
     # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
     pdf.set_y(8)
     # Define a cor do texto como branco
@@ -182,13 +181,12 @@ def gerar_pdf(dados):
     
     # Restaura a cor do texto para preto para o restante do documento
     pdf.set_text_color(0, 0, 0)
-    # --- FIM DAS MODIFICAÇÕES ---
     
     pdf.ln(10)
     
     pdf.set_font(font_family, '', 10)
     data_simulacao = datetime.now().strftime("%d/%m/%Y")
-    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "R")
+    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "L")
     pdf.ln(5)
 
     pdf.set_font(font_family, 'B', 12)
@@ -259,7 +257,7 @@ def gerar_pdf_frio(dados):
     
     pdf.set_font(font_family, '', 10)
     data_simulacao = datetime.now().strftime("%d/%m/%Y")
-    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "R")
+    pdf.cell(0, 5, f"Data da Simulação: {data_simulacao}", 0, 1, "L")
     pdf.ln(5)
 
     pdf.set_font(font_family, 'B', 12)
@@ -511,6 +509,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 

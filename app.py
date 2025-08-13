@@ -177,7 +177,7 @@ def gerar_pdf(dados):
     pdf.set_text_color(255, 255, 255)
     
     pdf.set_font(font_family, 'B', 16)
-    pdf.cell(0, 10, "Relatório de Cálculo Térmico - IsolaFácil", 0, 1, "C")
+    pdf.cell(0, 10, "Relatório de Cálculo Térmico", 0, 1, "C")
     
     # Restaura a cor do texto para preto para o restante do documento
     pdf.set_text_color(0, 0, 0)
@@ -247,7 +247,7 @@ def gerar_pdf_frio(dados):
     pdf.set_text_color(255, 255, 255)
 
     pdf.set_font(font_family, 'B', 16)
-    pdf.cell(0, 10, "Relatório de Cálculo de Condensação - IsolaFácil", 0, 1, "C")
+    pdf.cell(0, 10, "Relatório de Cálculo de Condensação", 0, 1, "C")
     
     # Restaura a cor do texto para preto para o restante do documento
     pdf.set_text_color(0, 0, 0)
@@ -508,6 +508,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 

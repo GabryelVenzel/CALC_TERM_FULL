@@ -1,31 +1,3 @@
-Com certeza! Entendido. Agradeço por recapitular e enviar os arquivos. Sei que os problemas com o PDF foram frustrantes, e a melhor abordagem agora é usar o seu código que já está funcionando (app (7).py) como base para aplicar os ajustes de layout.
-
-Analisei o seu código, o PDF gerado (Relatorio_IsolaFacil_20250813 (7).pdf) e a imagem da sobreposição (image_222362.png). A causa do problema é exatamente a que você apontou: os comandos para escrever o título e a data estão sendo executados em sequência, sem um controle robusto sobre o cabeçalho e rodapé, o que causa o desalinhamento e a sobreposição.
-
-Para corrigir isso de forma definitiva e elegante, criei uma classe de PDF personalizada que gerencia o cabeçalho e o rodapé automaticamente.
-
-O que foi alterado:
-Classe PDF(FPDF): Criei esta nova classe no topo do seu código. Ela herda todo o funcionamento da biblioteca de PDF.
-
-header() Automático: Esta função dentro da classe é chamada automaticamente em cada nova página. Eu a configurei para:
-
-Desenhar a sua imagem fundo_relatorio.png.
-
-Posicionar o título mais acima (posição vertical Y=25mm).
-
-Escrever o título com a cor branca.
-
-Restaurar a cor do texto para preto e posicionar o cursor para o início do conteúdo, evitando que o texto fique branco.
-
-footer() Automático: Esta função também é chamada automaticamente e posiciona a data no canto inferior direito de cada página, resolvendo o problema da página extra e da sobreposição.
-
-A única coisa que você precisa garantir é que os arquivos fundo_relatorio.png, DejaVuSans.ttf e DejaVuSans-Bold.ttf estejam na mesma pasta do script.
-
-Abaixo está o código completo. Por favor, substitua todo o seu app.py por este.
-
-Código Completo e Final com Layout do PDF Corrigido
-Python
-
 import streamlit as st
 import math
 import time
@@ -501,9 +473,6 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
-
-
-
 
 
 

@@ -67,31 +67,6 @@ def carregar_acabamentos():
         st.error(f"Erro ao carregar acabamentos: {ex}")
         return pd.DataFrame()
 
-# --- FUNÇÕES DE ADMINISTRAÇÃO DA PLANILHA ---
-def cadastrar_isolante(nome, k_func, t_min, t_max):
-    try:
-        worksheet = get_worksheet("Isolantes 2")
-        worksheet.append_row([nome, k_func, t_min, t_max])
-        st.cache_data.clear()
-        st.success(f"Isolante '{nome}' cadastrado com sucesso!")
-    except Exception as ex:
-        st.error(f"Falha ao cadastrar: {ex}")
-
-def excluir_isolante(nome):
-    try:
-        worksheet = get_worksheet("Isolantes 2")
-        cell = worksheet.find(nome)
-        if cell:
-            worksheet.delete_rows(cell.row)
-            st.cache_data.clear()
-            st.success(f"Isolante '{nome}' excluído com sucesso!")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.warning("Isolante não encontrado para exclusão.")
-    except Exception as ex:
-        st.error(f"Falha ao excluir: {ex}")
-
 # --- FUNÇÕES DE CÁLCULO ---
 def calcular_k(k_func_str, T_media):
     try:
@@ -172,7 +147,7 @@ def encontrar_temperatura_face_fria(Tq, To, L_total, k_func_str, geometry, emiss
         
     return Tf, None, False
 
-# --- FUNÇÃO DE GERAÇÃO DE PDF ---
+# --- FUNÇÕES DE GERAÇÃO DE PDF ---
 def preparar_pdf():
     pdf = FPDF()
     pdf.add_page()
@@ -181,7 +156,7 @@ def preparar_pdf():
         pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
         font_family = 'DejaVu'
     except RuntimeError:
-        st.warning("Arquivos de fonte (DejaVuSans.ttf, DejaVuSans-Bold.ttf) não encontrados. PDF usará fonte padrão.")
+        st.warning("Arquivos de fonte (DejaVu) não encontrados. PDF usará fonte padrão.")
         font_family = 'Arial'
     return pdf, font_family
 
@@ -202,9 +177,10 @@ def gerar_pdf(dados):
     
     def add_linha(chave, valor):
         pdf.set_font(font_family, 'B', 11)
-        pdf.cell(70, 8, f" {chave}:", border=0, ln=0, align='L')
+        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
         pdf.set_font(font_family, '', 11)
-        pdf.multi_cell(0, 8, str(valor), border=0, align='L')
+        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
+        pdf.ln(2)
 
     add_linha("Material do Isolante", dados.get("material", ""))
     add_linha("Acabamento Externo", dados.get("acabamento", ""))
@@ -254,9 +230,10 @@ def gerar_pdf_frio(dados):
     
     def add_linha(chave, valor):
         pdf.set_font(font_family, 'B', 11)
-        pdf.cell(70, 8, f" {chave}:", border=0, ln=0, align='L')
+        pdf.multi_cell(0, 6, f"{chave}:", border=0, align='L')
         pdf.set_font(font_family, '', 11)
-        pdf.multi_cell(0, 8, str(valor), border=0, align='L')
+        pdf.multi_cell(0, 6, f"    {str(valor)}", border=0, align='L')
+        pdf.ln(2)
 
     add_linha("Material do Isolante", dados.get("material", ""))
     add_linha("Tipo de Superfície", dados.get("geometria", ""))
@@ -294,9 +271,10 @@ if df_isolantes.empty or df_acabamentos.empty:
     st.error("Não foi possível carregar os dados da planilha. Verifique as abas 'Isolantes 2' e 'Emissividade'.")
     st.stop()
 
+# --- INTERFACE LATERAL (ADMIN) - REMOVIDA ---
+
 # --- INTERFACE COM TABS ---
 abas = st.tabs(["🔥 Cálculo Térmico e Financeiro", "🧊 Cálculo Térmico Frio"])
-
 with abas[0]:
     st.subheader("Parâmetros do Isolamento Térmico")
     
@@ -387,7 +365,7 @@ with abas[0]:
         if dados['num_camadas'] > 1:
             T_atual = dados['tq']
             k_medio = calcular_k(k_func_str, (dados['tq'] + dados['tf']) / 2)
-            if k_medio and q_com_isolante:
+            if k_medio and q_com_isolante is not None:
                 for i in range(dados['num_camadas'] - 1):
                     if dados['geometria'] == "Superfície Plana":
                         resistencia_camada = (espessuras[i] / 1000) / k_medio
@@ -478,7 +456,7 @@ with abas[1]:
                 else:
                     st.session_state.calculo_frio_realizado = False
                     st.error("❌ Não foi possível encontrar uma espessura que evite condensação até 500 mm.")
-
+    
     if st.session_state.get('calculo_frio_realizado', False):
         st.markdown("---")
         pdf_bytes_frio = gerar_pdf_frio(st.session_state.dados_ultima_simulacao_frio)

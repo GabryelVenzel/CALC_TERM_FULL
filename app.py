@@ -172,7 +172,7 @@ def gerar_pdf(dados):
     pdf, font_family = preparar_pdf()
     
     # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
-    pdf.set_y(8)
+    pdf.set_y(7)
     # Define a cor do texto como branco
     pdf.set_text_color(255, 255, 255)
     
@@ -242,7 +242,7 @@ def gerar_pdf_frio(dados):
 
     # --- MODIFICAÇÕES AQUI ---
     # Posiciona o cursor 8mm a partir do topo da página (mais acima que o padrão)
-    pdf.set_y(8)
+    pdf.set_y(7)
     # Define a cor do texto como branco
     pdf.set_text_color(255, 255, 255)
 
@@ -509,6 +509,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 

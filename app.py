@@ -468,8 +468,9 @@ with abas[0]:
                 value=eco_anual_str,
                 help=f"Economia mensal estimada: {eco_mensal_str}"
             )
-            m2.metric("Redução de Perda", f"{dados['reducao_pct']:.1f} %")
-            m3.metric("Carbono Evitado", f"{dados.get('co2_ton_ano', 0):.2f} tCO₂e/ano")
+            m2.metric("Carbono Evitado", f"{dados.get('co2_ton_ano', 0):.2f} tCO₂e/ano")
+            m3.metric("Redução de Perda", f"{dados['reducao_pct']:.1f} %")
+            
 
         st.markdown("---")
         pdf_bytes = gerar_pdf(dados)
@@ -551,6 +552,7 @@ with abas[1]:
             mime="application/pdf",
             key="btn_pdf_frio"
         )
+
 
 
 
